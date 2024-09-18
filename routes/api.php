@@ -18,11 +18,13 @@ Route::middleware('auth:sanctum')->group(function () {
     //user
     Route::get('/users', [UserController::class, 'index']);
     Route::get('/users/{id}', [UserController::class, 'show']);
+    Route::post('users', [UserController::class, 'store']);
     Route::put('/users/{id}', [UserController::class, 'update']);
     Route::delete('/users/{id}', [UserController::class, 'destroy']);
-    
+
     //department
     Route::get('departments', [DepartmentController::class, 'index']);
+    Route::get('departments/{id}', [DepartmentController::class, 'show']);
     Route::post('departments', [DepartmentController::class, 'store']);
     Route::post('departments/{department_id}/add-user', [DepartmentController::class, 'addUserToDepartment']);
     Route::delete('departments/{department_id}/remove-user/{user_id}', [DepartmentController::class, 'removeUserFromDepartment']);

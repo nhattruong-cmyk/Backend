@@ -27,6 +27,18 @@ class DepartmentController extends Controller
 
         return response()->json(['message' => 'Department created successfully', 'department' => $department], 201);
     }
+    public function show($id)
+    {
+        // Tìm phòng ban theo id, kèm theo thông tin các người dùng liên quan
+        $department = Department::with('users')->find($id);
+
+        // Kiểm tra nếu phòng ban không tồn tại
+        if (!$department) {
+            return response()->json(['message' => 'Department not found'], 404);
+        }
+
+        return response()->json($department);
+    }
 
     // Thêm thành viên vào phòng ban
     public function addUserToDepartment(Request $request, $department_id)
