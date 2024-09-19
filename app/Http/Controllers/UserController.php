@@ -10,10 +10,8 @@ class UserController extends Controller
     // Lấy danh sách tất cả người dùng
     public function index(Request $request)
     {
-        // Lấy người dùng đã đăng nhập
         $user = $request->user();
 
-        // Kiểm tra quyền của người dùng
         if ($user->role_id == 1) { // Admin
             // Trả về tất cả người dùng nếu là admin
             $users = User::all();
@@ -44,9 +42,11 @@ class UserController extends Controller
             return response()->json($requestedUser);
         }
 
-        // Manager chỉ được xem thông tin của staff
-        if ($user->role_id == 2 && $requestedUser->role_id == 3) {
-            return response()->json($requestedUser);
+        // Manager có thể xem thông tin của staff hoặc chính mình
+        if ($user->role_id == 2) {
+            if ($requestedUser->role_id == 3 || $user->id == $requestedUser->id) {
+                return response()->json($requestedUser);
+            }
         }
 
         // Staff chỉ được xem thông tin của chính mình
@@ -92,13 +92,19 @@ class UserController extends Controller
             return response()->json(['message' => 'User updated successfully', 'user' => $requestedUser]);
         }
 
-        // Manager chỉ được sửa thông tin của staff
-        if ($user->role_id == 2 && $requestedUser->role_id == 3) {
+        // Manager có thể sửa thông tin của tất cả Staff hoặc chính mình
+        if ($user->role_id == 2) {
+            if ($requestedUser->role_id == 3 || $user->id == $requestedUser->id) {
+                $requestedUser->update($request->all());
+                return response()->json(['message' => 'User updated successfully', 'user' => $requestedUser]);
+            }
+        }
+        // Staff chỉ được sửa thông tin của chính mình
+        if ($user->role_id == 3 && $user->id == $requestedUser->id) {
             $requestedUser->update($request->all());
             return response()->json(['message' => 'User updated successfully', 'user' => $requestedUser]);
         }
 
-        // Staff không được phép chỉnh sửa bất kỳ ai, kể cả chính mình
         return response()->json(['message' => 'Unauthorized'], 403);
     }
 

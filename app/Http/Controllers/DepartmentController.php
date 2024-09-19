@@ -39,6 +39,7 @@ class DepartmentController extends Controller
 
         return response()->json($department);
     }
+
     // Thêm thành viên vào phòng ban
     public function addUserToDepartment(Request $request, $department_id)
     {

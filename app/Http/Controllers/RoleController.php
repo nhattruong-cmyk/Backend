@@ -18,6 +18,7 @@ class RoleController extends Controller
         return response()->json($roles);
     }
 
+
     /**
      * Store a newly created resource in storage.
      */
@@ -49,6 +50,7 @@ class RoleController extends Controller
 
         return response()->json($role);
     }
+
 
     /**
      * Update the specified resource in storage.
