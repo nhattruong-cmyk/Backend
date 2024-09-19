@@ -60,6 +60,8 @@ class DepartmentController extends Controller
         if (!is_array($userIds)) {
             $userIds = [$userIds]; // Nếu không phải mảng, chuyển đổi thành mảng
         }
+        
+        // thêm hàm nếu đã tồn tại trong phòng ban thì báo lỗi can't add user to department
 
         // Thêm người dùng vào phòng ban
         $department->users()->syncWithoutDetaching($userIds);
