@@ -56,4 +56,9 @@ class User extends Authenticatable
       {
           return $this->belongsToMany(Department::class, 'department_user', 'user_id', 'department_id');
       }
+
+      public function projects()
+      {
+          return $this->hasMany(Project::class, 'manager_id');
+      }
 }

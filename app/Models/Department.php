@@ -17,4 +17,13 @@ class Department extends Model
     {
         return $this->belongsToMany(User::class, 'department_user', 'department_id', 'user_id');
     }
+    public function projects()
+    {
+        return $this->belongsToMany(Project::class, 'project_department');
+    }
+    // Quan hệ nhiều-nhiều với Task
+    public function tasks()
+    {
+        return $this->belongsToMany(Task::class, 'task_department');
+    }
 }

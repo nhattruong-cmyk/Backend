@@ -6,6 +6,12 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\DepartmentController;
+use App\Http\Controllers\CommentController;
+use App\Http\Controllers\TaskController;
+use App\Http\Controllers\ProjectController;
+
+
+
 
 
 Route::apiResource('roles', RoleController::class);
@@ -30,6 +36,27 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('departments/{department_id}/remove-user/{user_id}', [DepartmentController::class, 'removeUserFromDepartment']);
     Route::put('departments/{department_id}', [DepartmentController::class, 'update']);
     Route::delete('departments/{department_id}', [DepartmentController::class, 'destroy']);
+
+    //comments
+    Route::get('/comments', [CommentController::class, 'index']);
+    Route::get('/comments/{id}', [CommentController::class, 'show']);
+    Route::post('comments', [CommentController::class, 'store']);
+    Route::put('/comments/{id}', [CommentController::class, 'update']);
+    Route::delete('/comments/{id}', [CommentController::class, 'destroy']);
+
+    //tasks
+    Route::get('/tasks', [TaskController::class, 'index']);
+    Route::get('/tasks/{id}', [TaskController::class, 'show']);
+    Route::post('tasks', [TaskController::class, 'store']);
+    Route::put('/tasks/{id}', [TaskController::class, 'update']);
+    Route::delete('/tasks/{id}', [TaskController::class, 'destroy']);
+
+    //projects
+    Route::get('/projects', [ProjectController::class, 'index']);
+    Route::get('/projects/{id}', [ProjectController::class, 'show']);
+    Route::post('projects', [ProjectController::class, 'store']);
+    Route::put('/projects/{id}', [ProjectController::class, 'update']);
+    Route::delete('/projects/{id}', [ProjectController::class, 'destroy']);
 });
 
 
