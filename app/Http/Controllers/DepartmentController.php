@@ -95,20 +95,35 @@ class DepartmentController extends Controller
     // Cập nhật phòng ban
     public function update(Request $request, $department_id)
     {
+        // Kiểm tra dữ liệu đầu vào
         $request->validate([
-            'department_name' => 'required|string|max:255',
+            'department_name' => 'nullable|string|max:255',
             'description' => 'nullable|string',
+            'user_ids' => 'nullable|array', // Cho phép user_ids là mảng
+            'user_ids.*' => 'exists:users,id', // Kiểm tra từng user_id có tồn tại không
         ]);
 
+        // Tìm phòng ban theo id
         $department = Department::find($department_id);
 
+        // Nếu không tìm thấy phòng ban, trả về lỗi
         if (!$department) {
             return response()->json(['message' => 'Department not found'], 404);
         }
 
-        $department->update($request->all());
+        // Chỉ cập nhật department_name và description khi chúng được gửi lên
+        if ($request->has('department_name') || $request->has('description')) {
+            $department->update($request->only(['department_name', 'description']));
+        }
 
-        return response()->json(['message' => 'Department updated successfully']);
+        // Cập nhật user_ids nếu có trong request
+        if ($request->has('user_ids')) {
+            $userIds = $request->input('user_ids');
+            $department->users()->sync($userIds);
+        }
+
+        // Trả về phản hồi thành công
+        return response()->json(['message' => 'Department updated successfully', 'department' => $department]);
     }
 
     // Xóa phòng ban
