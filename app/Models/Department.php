@@ -19,7 +19,11 @@ class Department extends Model
     }
     public function projects()
     {
-        return $this->hasMany(Project::class);
+        return $this->belongsToMany(Project::class, 'project_department');
     }
-
+    // Quan hệ nhiều-nhiều với Task
+    public function tasks()
+    {
+        return $this->belongsToMany(Task::class, 'task_department');
+    }
 }

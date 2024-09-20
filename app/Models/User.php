@@ -22,6 +22,7 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
+        'role_id'
     ];
 
     /**
@@ -50,14 +51,14 @@ class User extends Authenticatable
     {
         return $this->belongsTo(Role::class);
     }
-    // Quan hệ many-to-many với Department
-    public function departments()
-    {
-        return $this->belongsToMany(Department::class, 'department_user', 'user_id', 'department_id');
-    }
-    public function tasks()
-    {
-        return $this->belongsToMany(Task::class, 'task_user', 'user_id', 'task_id');
-    }
+      // Quan hệ many-to-many với Department
+      public function departments()
+      {
+          return $this->belongsToMany(Department::class, 'department_user', 'user_id', 'department_id');
+      }
 
+      public function projects()
+      {
+          return $this->hasMany(Project::class, 'manager_id');
+      }
 }

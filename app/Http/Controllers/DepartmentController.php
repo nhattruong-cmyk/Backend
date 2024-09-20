@@ -30,7 +30,7 @@ class DepartmentController extends Controller
     public function show($id)
     {
         // Tìm phòng ban theo id, kèm theo thông tin các người dùng liên quan
-        $department = Department::with('users')->find($id);
+        $department = Department::with('users', 'tasks')->find($id);
 
         // Kiểm tra nếu phòng ban không tồn tại
         if (!$department) {
@@ -60,6 +60,8 @@ class DepartmentController extends Controller
         if (!is_array($userIds)) {
             $userIds = [$userIds]; // Nếu không phải mảng, chuyển đổi thành mảng
         }
+        
+        // thêm hàm nếu đã tồn tại trong phòng ban thì báo lỗi can't add user to department
 
         // Thêm người dùng vào phòng ban
         $department->users()->syncWithoutDetaching($userIds);
@@ -95,36 +97,45 @@ class DepartmentController extends Controller
     // Cập nhật phòng ban
     public function update(Request $request, $department_id)
     {
-        // Kiểm tra dữ liệu đầu vào
-        $request->validate([
-            'department_name' => 'nullable|string|max:255',
-            'description' => 'nullable|string',
-            'user_ids' => 'nullable|array', // Cho phép user_ids là mảng
-            'user_ids.*' => 'exists:users,id', // Kiểm tra từng user_id có tồn tại không
-        ]);
-
-        // Tìm phòng ban theo id
-        $department = Department::find($department_id);
-
-        // Nếu không tìm thấy phòng ban, trả về lỗi
-        if (!$department) {
-            return response()->json(['message' => 'Department not found'], 404);
-        }
-
-        // Chỉ cập nhật department_name và description khi chúng được gửi lên
-        if ($request->has('department_name') || $request->has('description')) {
+        try {
+            // Xác thực dữ liệu đầu vào với đôi khi (sometimes) xác thực
+            $request->validate([
+                'department_name' => 'sometimes|required|string|max:255',
+                'description' => 'sometimes|nullable|string',
+                'user_ids' => 'sometimes|array', // Nhận mảng ID của người dùng
+                'user_ids.*' => 'exists:users,id' // Mỗi ID phải là hợp lệ trong bảng users
+            ]);
+    
+            // Tìm phòng ban theo ID
+            $department = Department::find($department_id);
+    
+            if (!$department) {
+                return response()->json(['message' => 'Department not found'], 404);
+            }
+    
+            // Cập nhật thông tin phòng ban, chỉ cập nhật những trường có mặt trong request
             $department->update($request->only(['department_name', 'description']));
+    
+            // Kiểm tra nếu có danh sách user_id để cập nhật
+            if ($request->has('user_ids')) {
+                // Gán người dùng vào phòng ban (sử dụng sync để cập nhật)
+                $department->users()->sync($request->input('user_ids'));
+            }
+    
+            return response()->json(['message' => 'Department and users updated successfully', 'department' => $department], 200);
+    
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            // Bắt lỗi xác thực và trả về chi tiết lỗi
+            return response()->json(['error' => $e->errors()], 422);
+    
+        } catch (\Exception $e) {
+            // Bắt lỗi chung và trả về thông báo lỗi
+            return response()->json(['error' => 'Failed to update department: ' . $e->getMessage()], 500);
         }
-
-        // Cập nhật user_ids nếu có trong request
-        if ($request->has('user_ids')) {
-            $userIds = $request->input('user_ids');
-            $department->users()->sync($userIds);
-        }
-
-        // Trả về phản hồi thành công
-        return response()->json(['message' => 'Department updated successfully', 'department' => $department]);
     }
+    
+    
+    
 
     // Xóa phòng ban
     public function destroy($department_id)
