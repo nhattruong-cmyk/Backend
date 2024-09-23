@@ -19,10 +19,9 @@ return new class extends Migration
             $table->date('end_date');
             $table->unsignedTinyInteger('status')->default(1);
             $table->unsignedBigInteger('user_id');
-            $table->unsignedBigInteger('department_id');
             $table->timestamps();
             
-            $table->foreign('department_id')->references('id')->on('departments');
+      
             $table->foreign('user_id')->references('id')->on('users');
 
         });
