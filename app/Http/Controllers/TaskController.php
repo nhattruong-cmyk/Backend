@@ -31,7 +31,7 @@ class TaskController extends Controller
             'start_date' => 'nullable|date',
             'end_date' => 'nullable|date|after_or_equal:start_date',
             'project_id' => 'required|exists:projects,id',
-            'department_ids' => 'required|array',
+            'department_ids' => 'nullable|array',
             'department_ids.*' => 'exists:departments,id',
         ]);
     
