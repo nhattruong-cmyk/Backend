@@ -48,18 +48,14 @@ class ProjectController extends Controller
             return response()->json(['error' => $e->getMessage()], 500);
         }
     }
-    
-    
-    
-    
-    
+     
     /**
      * Display the specified resource.
      */
     public function show($id)
     {
-        $projects = Project::with(['user', 'departments'])->findOrFail($id);
-        return response()->json($projects);
+        $project = Project::with(['user', 'departments'])->findOrFail($id);
+        return response()->json($project);
     }
 
     /**
@@ -94,14 +90,17 @@ class ProjectController extends Controller
         // Trả về phản hồi JSON với thông tin dự án đã được cập nhật
         return response()->json($project->load('departments'), 200);
     }
-    
-    
-    
+      
     /**
      * Remove the specified resource from storage.
      */
     public function destroy(string $id)
     {
-        //
+        $project = Project::find($id);
+        if(!$project){
+            return response()->json(['message' => 'Project not found'], 404);
+        }
+        $project->delete();
+        return response()->json(['message' => 'Project deleted successfully']);
     }
 }

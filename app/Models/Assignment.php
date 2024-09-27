@@ -12,25 +12,50 @@ class Assignment extends Model
     protected $fillable = [
         'task_id',
         'user_id',
-        'role_id',
-        'assigned_date',
-        'note',
+        'department_id',
+        'status',
     ];
-    // Liên kết với Task
+    // Quan hệ với Task
     public function task()
     {
         return $this->belongsTo(Task::class);
     }
 
-    // Liên kết với User
     public function user()
     {
         return $this->belongsTo(User::class);
     }
 
-    // Liên kết với Role
-    public function role()
+    public function department()
     {
-        return $this->belongsTo(Role::class);
+        return $this->belongsTo(Department::class);
+    }
+
+    public function getStatusAttribute($value)
+    {
+        $statuses = [
+            0 => 'pending',
+            1 => 'in progress',
+            2 => 'completed'
+        ];
+
+        return $statuses[$value] ?? 'unknown';
+    }
+
+    /**
+     * Mutator để lưu 'status' dưới dạng số
+     */
+    public function setStatusAttribute($value)
+    {
+        $statuses = [
+            'pending' => 0,
+            'in progress' => 1,
+            'completed' => 2,
+            0 => 0,
+            1 => 1,
+            2 => 2,
+        ];
+
+        $this->attributes['status'] = $statuses[$value] ?? 0;
     }
 }

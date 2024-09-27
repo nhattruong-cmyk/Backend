@@ -9,14 +9,16 @@ return new class extends Migration
     /**
      * Run the migrations.
      */
-    public function up(): void
+    public function up()
     {
-        Schema::create('task_department', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('task_id')->constrained('tasks')->onDelete('cascade');
-            $table->foreignId('department_id')->constrained('departments')->onDelete('cascade');
-            $table->timestamps();
-        });
+        if (!Schema::hasTable('task_department')) {
+            Schema::create('task_department', function (Blueprint $table) {
+                $table->id();
+                $table->unsignedBigInteger('task_id');
+                $table->unsignedBigInteger('department_id');
+                $table->timestamps();
+            });
+        }
     }
 
     /**

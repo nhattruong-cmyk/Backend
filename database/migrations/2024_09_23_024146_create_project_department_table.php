@@ -9,14 +9,16 @@ return new class extends Migration
     /**
      * Run the migrations.
      */
-    public function up(): void
+    public function up()
     {
-        Schema::create('project_department', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('project_id')->constrained('projects')->onDelete('cascade');
-            $table->foreignId('department_id')->constrained('departments')->onDelete('cascade');
-            $table->timestamps();
-        });
+        if (!Schema::hasTable('project_department')) {
+            Schema::create('project_department', function (Blueprint $table) {
+                $table->id();
+                $table->unsignedBigInteger('project_id');
+                $table->unsignedBigInteger('department_id');
+                $table->timestamps();
+            });
+        }
     }
 
     /**
