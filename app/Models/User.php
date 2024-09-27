@@ -51,14 +51,34 @@ class User extends Authenticatable
     {
         return $this->belongsTo(Role::class);
     }
-      // Quan hệ many-to-many với Department
-      public function departments()
-      {
-          return $this->belongsToMany(Department::class, 'department_user', 'user_id', 'department_id');
-      }
+
+    // Quan hệ nhiều-nhiều với Department
+    public function departments()
+    {
+        return $this->belongsToMany(Department::class, 'department_user', 'user_id', 'department_id')
+                    ->withTimestamps();
+    }
 
       public function projects()
       {
           return $this->hasMany(Project::class, 'manager_id');
       }
+    //   public function tasks()
+    //   {
+    //       return $this->belongsToMany(Task::class, 'task_user')
+    //                   ->withTimestamps();
+    //   }
+
+        // Quan hệ nhiều-nhiều với Task thông qua bảng phụ task_user
+        public function tasks()
+        {
+            return $this->belongsToMany(Task::class, 'task_user')->withTimestamps();
+        }
+    
+        // Quan hệ một-nhiều với Assignment
+        public function assignments()
+        {
+            return $this->hasMany(Assignment::class);
+        }
+    
 }

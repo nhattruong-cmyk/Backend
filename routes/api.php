@@ -61,9 +61,9 @@ Route::middleware('auth:sanctum')->group(function () {
     // Assignments
     Route::get('/assignments', [AssignmentController::class, 'index']);
     Route::get('/assignments/{id}', [AssignmentController::class, 'show']);
-    Route::post('/assignments', [AssignmentController::class, 'assignUserToTask']);
+    Route::post('/assignments', [AssignmentController::class, 'store']);
     Route::put('/assignments/{id}', [AssignmentController::class, 'update']);
-    Route::delete('/assignments', [AssignmentController::class, 'removeUserFromTask']);
+    Route::delete('/assignments/{id}', [AssignmentController::class, 'destroy']);
 
 
 });

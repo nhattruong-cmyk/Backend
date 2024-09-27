@@ -25,7 +25,6 @@ class Project extends Model
             return $statuses[$value] ?? 'unknown'; // Trả về 'unknown' nếu không tìm thấy giá trị phù hợp
         }
         
-    
         // Tạo mutator để lưu status dưới dạng số
         public function setStatusAttribute($value)
         {
@@ -52,12 +51,14 @@ class Project extends Model
             return $this->belongsToMany(Department::class, 'project_department', 'project_id', 'department_id');
         }
         
-
-        // Quan hệ một-nhiều với bảng Task
         public function tasks()
         {
-            return $this->hasMany(Task::class);
+            return $this->belongsToMany(Task::class, 'project_task', 'project_id', 'task_id')
+                        ->withTimestamps();
         }
+        
+        
+        
             
     
         

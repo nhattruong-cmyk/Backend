@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 use App\Models\Task;
 use App\Models\Project;
+use App\Models\Department;
+
 
 
 use Illuminate\Http\Request;
@@ -14,16 +16,15 @@ class TaskController extends Controller
      */
     public function index()
     {
-       $tasks = Task::with('project', 'departments')->get();
+       $tasks = Task::with('projects', 'departments')->get();
        return response()->json($tasks, 200);
     }
-
     /**
      * Store a newly created resource in storage.
      */
     public function store(Request $request)
     {
-        // Xác thực dữ liệu đầu vào
+        // Xác thực dữ liệu đầu vào mà không dùng 'exists' cho department_id
         $validatedData = $request->validate([
             'task_name' => 'required|string|max:255',
             'description' => 'nullable|string',
@@ -31,55 +32,74 @@ class TaskController extends Controller
             'start_date' => 'nullable|date',
             'end_date' => 'nullable|date|after_or_equal:start_date',
             'project_id' => 'required|exists:projects,id',
-            'department_ids' => 'nullable|array',
-            'department_ids.*' => 'exists:departments,id',
+            'department_id' => 'required|integer',  // Không dùng exists ở đây
         ]);
     
         try {
-            // Lấy thông tin project hiện tại
+            // Lấy thông tin project hiện tại và các departments thuộc project đó
             $project = Project::with('departments')->findOrFail($validatedData['project_id']);
-    
-            // Lấy danh sách phòng ban hợp lệ (phòng ban thuộc về dự án)
+            
+            // Lấy danh sách department hợp lệ thuộc về project
             $validDepartmentIds = $project->departments->pluck('id')->toArray();
     
-            // Kiểm tra phòng ban được gán có nằm trong project không
-            $invalidDepartments = array_diff($validatedData['department_ids'], $validDepartmentIds);
-            if (!empty($invalidDepartments)) {
-                return response()->json(['error' => 'Some departments are not associated with the project'], 400);
+            // Kiểm tra xem department_id có tồn tại trong bảng departments hay không
+            $department = Department::find($validatedData['department_id']);
+            if (!$department) {
+                return response()->json([
+                    'error' => 'The selected department does not exist in the database.'
+                ], 400);
             }
     
-            // Tạo một nhiệm vụ mới
+            // Kiểm tra nếu department_id không nằm trong danh sách các phòng ban của project
+            if (!in_array($validatedData['department_id'], $validDepartmentIds)) {
+                return response()->json([
+                    'error' => 'The selected department does not belong to the specified project.'
+                ], 400);
+            }
+    
+            // Tạo một nhiệm vụ mới (task)
             $task = Task::create($validatedData);
     
-            if ($task) {
-                // Gán các phòng ban hợp lệ cho nhiệm vụ
-                $task->departments()->sync($validatedData['department_ids']);
+            // Gán department cho task trong bảng pivot task_department
+            $task->departments()->attach($validatedData['department_id']);
     
-                return response()->json($task->load('departments'), 201);
-            } else {
-                return response()->json(['error' => 'Failed to create task'], 500);
-            }
+            // Gán task cho project trong bảng pivot project_task
+            $project->tasks()->attach($task->id);
+    
+            return response()->json($task->load('departments'), 201);
     
         } catch (\Exception $e) {
-            return response()->json(['error' => 'Failed to create task: ' . $e->getMessage()], 500);
+            return response()->json([
+                'error' => 'Failed to create task: ' . $e->getMessage()
+            ], 500);
         }
     }
     
     
     
-
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
     /**
      * Display the specified resource.
      */
-    public function show($id)
+    public function show($task_id)
     {
         // Tải trước mối quan hệ project và departments của project
-        $task = Task::with('project.departments')->findOrFail($id);
-    
+        $task = Task::with('project.departments')->find($task_id);
+        if (!$task) {
+            return response()->json(['message' => 'Task not found'], 404);
+        }
         return response()->json($task, 200);
     }
-    
-
     /**
      * Update the specified resource in storage.
      */
@@ -103,14 +123,16 @@ class TaskController extends Controller
     
         return response()->json($task, 200);
     }
-
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy($id)
+    public function destroy($task_id)
     {
         // Tìm nhiệm vụ theo ID
-        $task = Task::findOrFail($id);
+        $task = Task::find($task_id);
+        if (!$task) {
+            return response()->json(['message' => 'Task not found'], 404);
+        }
         // Xóa nhiệm vụ
         $task->delete();
 
