@@ -11,21 +11,25 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('projects', function (Blueprint $table) {
-            $table->id();
-            $table->string('project_name');
-            $table->text('description')->nullable();
-            $table->date('start_date');
-            $table->date('end_date');
-            $table->unsignedTinyInteger('status')->default(1);
-            $table->unsignedBigInteger('user_id');
-            $table->unsignedBigInteger('department_id');
-            $table->timestamps();
-            
-            $table->foreign('department_id')->references('id')->on('departments');
-            $table->foreign('user_id')->references('id')->on('users');
 
-        });
+        if (!Schema::hasTable('projects')) {
+            Schema::create('projects', function (Blueprint $table) {
+                $table->id();
+                $table->string('project_name');
+                $table->text('description')->nullable();
+                $table->date('start_date');
+                $table->date('end_date');
+                $table->unsignedTinyInteger('status')->default(1);
+                $table->unsignedBigInteger('user_id');
+                $table->unsignedBigInteger('department_id');
+                $table->timestamps();
+                
+                $table->foreign('department_id')->references('id')->on('departments');
+                $table->foreign('user_id')->references('id')->on('users');
+    
+            });
+        }
+
     }
 
     /**

@@ -11,12 +11,15 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('project_task', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('project_id')->constrained()->onDelete('cascade');
-            $table->foreignId('task_id')->constrained()->onDelete('cascade');
-            $table->timestamps();
-        });
+
+        if (!Schema::hasTable('assignments')) {
+            Schema::create('project_task', function (Blueprint $table) {
+                $table->id();
+                $table->foreignId('project_id')->constrained()->onDelete('cascade');
+                $table->foreignId('task_id')->constrained()->onDelete('cascade');
+                $table->timestamps();
+            });
+        }
     }
 
     /**

@@ -11,17 +11,22 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('assignments', function (Blueprint $table) {
-            $table->id();
-            $table->text('note')->nullable();
-            $table->date('assigned_date'); // Ngày phân công
-            $table->timestamps(); // Tạo các trường created_at và updated_at
-            $table->unsignedBigInteger('role_id'); // Khóa ngoại
-            $table->unsignedBigInteger('user_id'); // Khóa ngoại
-            $table->unsignedBigInteger('task_id'); // Khóa ngoại
 
 
-        });
+        if (!Schema::hasTable('assignments')) {
+            Schema::create('assignments', function (Blueprint $table) {
+                $table->id();
+                $table->text('note')->nullable();
+                $table->date('assigned_date'); // Ngày phân công
+                $table->timestamps(); // Tạo các trường created_at và updated_at
+                $table->unsignedBigInteger('role_id'); // Khóa ngoại
+                $table->unsignedBigInteger('user_id'); // Khóa ngoại
+                $table->unsignedBigInteger('task_id'); // Khóa ngoại
+    
+    
+            });
+        }
+
     }
 
     /**

@@ -10,11 +10,15 @@ return new class extends Migration {
      */
     public function up(): void
     {
-        Schema::table('assignments', function (Blueprint $table) {
-            $table->foreign('role_id')->references('id')->on('roles');
-            $table->foreign('user_id')->references('id')->on('users');
-            $table->foreign('task_id')->references('id')->on('tasks');
-        });
+
+
+        if (!Schema::hasTable('assignments')) {
+            Schema::table('assignments', function (Blueprint $table) {
+                $table->foreign('role_id')->references('id')->on('roles');
+                $table->foreign('user_id')->references('id')->on('users');
+                $table->foreign('task_id')->references('id')->on('tasks');
+            });
+        }
     }
 
     /**

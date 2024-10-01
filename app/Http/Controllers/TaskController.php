@@ -76,18 +76,6 @@ class TaskController extends Controller
     }
     
     
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
     /**
      * Display the specified resource.
      */
@@ -103,10 +91,18 @@ class TaskController extends Controller
     /**
      * Update the specified resource in storage.
      */
-    public function update(Request $request, $id)
+    public function update(Request $request, $task_id)
     {
-        // Tìm nhiệm vụ theo ID
-        $task = Task::findOrFail($id);
+        // Tìm nhiệm vụ theo ID và lấy cả project cùng các departments thuộc project đó
+        $task = Task::findOrFail($task_id);
+    
+        // Kiểm tra nếu task không có project liên kết
+        if (!$task->project) {
+            return response()->json(['error' => 'This task is not associated with any project.'], 400);
+        }
+    
+        // Lấy project liên kết với task và nạp trước quan hệ departments
+        $project = $task->project()->with('departments')->first();
     
         // Xác thực dữ liệu đầu vào
         $validatedData = $request->validate([
@@ -116,13 +112,41 @@ class TaskController extends Controller
             'start_date' => 'nullable|date',
             'end_date' => 'nullable|date|after_or_equal:start_date',
             'project_id' => 'sometimes|required|exists:projects,id',
+            'department_id' => 'sometimes|integer' // Xác thực department_id nếu có cung cấp
         ]);
     
-        // Cập nhật nhiệm vụ với dữ liệu mới
-        $task->update($validatedData);
+        try {
+            // Kiểm tra tính hợp lệ của `department_id` nếu được cung cấp
+            if (isset($validatedData['department_id'])) {
+                $departmentId = $validatedData['department_id'];
     
-        return response()->json($task, 200);
+                // Lấy danh sách `department_id` hợp lệ thuộc `project`
+                $validDepartments = $project->departments->pluck('id')->toArray();
+    
+                // Kiểm tra nếu `department_id` không thuộc `project`
+                if (!in_array($departmentId, $validDepartments)) {
+                    return response()->json([
+                        'error' => 'The department is not associated with the project that the task belongs to.'
+                    ], 400);
+                }
+    
+                // Cập nhật liên kết giữa task và department trong bảng phụ `task_department`
+                $task->departments()->sync([$departmentId]);
+            }
+    
+            // Cập nhật các thông tin khác của nhiệm vụ nếu được cung cấp
+            $task->update($validatedData);
+    
+            return response()->json(['message' => 'Task updated successfully', 'task' => $task->load('departments')], 200);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Failed to update task: ' . $e->getMessage()], 500);
+        }
     }
+    
+    
+    
+    
+    
     /**
      * Remove the specified resource from storage.
      */

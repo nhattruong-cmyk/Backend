@@ -11,17 +11,23 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('assignments', function (Blueprint $table) {
-            // Đảm bảo rằng không có dữ liệu nào bị mất khi chuyển đổi
-            // Bạn có thể cần phải cập nhật dữ liệu hiện tại để phù hợp với kiểu mới
-            // Ví dụ:
-            // DB::table('assignments')->where('status', 'pending')->update(['status' => 0]);
-            // DB::table('assignments')->where('status', 'in progress')->update(['status' => 1]);
-            // DB::table('assignments')->where('status', 'completed')->update(['status' => 2]);
 
-            // Thay đổi kiểu dữ liệu của cột 'status' từ ENUM thành INTEGER
-            $table->integer('status')->default(0)->change();
-        });
+
+        if (!Schema::hasTable('assignments')) {
+            Schema::table('assignments', function (Blueprint $table) {
+                // Đảm bảo rằng không có dữ liệu nào bị mất khi chuyển đổi
+                // Bạn có thể cần phải cập nhật dữ liệu hiện tại để phù hợp với kiểu mới
+                // Ví dụ:
+                // DB::table('assignments')->where('status', 'pending')->update(['status' => 0]);
+                // DB::table('assignments')->where('status', 'in progress')->update(['status' => 1]);
+                // DB::table('assignments')->where('status', 'completed')->update(['status' => 2]);
+    
+                // Thay đổi kiểu dữ liệu của cột 'status' từ ENUM thành INTEGER
+                $table->integer('status')->default(0)->change();
+            });
+        }
+
+
     }
 
     /**
