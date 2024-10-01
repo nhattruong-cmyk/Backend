@@ -12,15 +12,15 @@ class Task extends Model
     public function project()
     {
         return $this->belongsToMany(Project::class, 'project_task', 'task_id', 'project_id')
-                    ->withTimestamps();
+            ->withTimestamps();
     }
-    
+
     public function departments()
     {
         return $this->belongsToMany(Department::class, 'task_department', 'task_id', 'department_id')
-                    ->withTimestamps();
+            ->withTimestamps();
     }
-    
+
     // Quan hệ một-nhiều với bảng Assignment
     public function assignments()
     {
@@ -32,7 +32,11 @@ class Task extends Model
     {
         return $this->belongsToMany(User::class, 'task_user')->withTimestamps();
     }
-    
+    public function files()
+    {
+        return $this->hasMany(File::class, 'task_id'); // Liên kết với bảng files qua task_id
+    }
+
 
     public function getStatusAttribute($value)
     {
@@ -41,10 +45,10 @@ class Task extends Model
             1 => 'in progress',
             2 => 'completed'
         ];
-    
+
         return $statuses[$value] ?? 'unknown'; // Trả về 'unknown' nếu không tìm thấy giá trị phù hợp
     }
-    
+
     public function setStatusAttribute($value)
     {
         $statuses = [
@@ -55,9 +59,9 @@ class Task extends Model
             1 => 1,
             2 => 2,
         ];
-    
+
         $this->attributes['status'] = $statuses[$value] ?? 0; // Trạng thái mặc định là 'pending'
     }
-    
+
 
 }

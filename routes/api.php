@@ -10,6 +10,8 @@ use App\Http\Controllers\DepartmentController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\TaskController;
 use App\Http\Controllers\AssignmentController;
+use App\Http\Controllers\FileController;
+use App\Http\Controllers\CommentController;
 
 
 Route::post('/register', [AuthController::class, 'register']);
@@ -65,6 +67,28 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/assignments/{id}', [AssignmentController::class, 'update']);
     Route::delete('/assignments/{id}', [AssignmentController::class, 'destroy']);
 
+    // Files liên kết với task cụ thể
+    Route::get('/tasks/{id}/files', [FileController::class, 'getTaskFiles']); // Lấy danh sách file của task cụ thể
+    Route::post('tasks/{taskId}/files', [FileController::class, 'uploadFiles'])->name('tasks.files.upload');
+    Route::get('files/{fileId}/download', [FileController::class, 'downloadFile'])->name('files.download');
+
+    Route::get('/files', [FileController::class, 'index']);
+    Route::post('/files', [FileController::class, 'store']);
+    Route::get('/files/{id}', [FileController::class, 'show']);
+    Route::delete('/files/{id}', [FileController::class, 'destroy']); // xóa mềm file
+    Route::put('/files/{id}', [FileController::class, 'update']);
+
+
+    // Route cho restore và force delete
+    Route::post('/files/{id}/restore', [FileController::class, 'restore']); // Khôi phục file đã bị soft delete
+    Route::get('/files/trashed', [FileController::class, 'trashed']); // Lấy danh sách file đã bị soft delete
+    Route::delete('/files/{id}/force-delete', [FileController::class, 'forceDelete']); // Xóa hoàn toàn file (hard delete)
+
+    //Route cho Comment
+    Route::post('/comments', [CommentController::class, 'store']); // Tạo bình luận
+    Route::put('/comments/{id}', [CommentController::class, 'update']); // Cập nhật bình luận
+    Route::delete('/comments/{id}', [CommentController::class, 'destroy']); // Xóa bình luận
+    Route::get('/tasks/{taskId}/comments', [CommentController::class, 'getCommentsByTask']); // Lấy bình luận của task
 
 });
 
