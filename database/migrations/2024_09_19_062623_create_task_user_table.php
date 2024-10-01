@@ -10,12 +10,15 @@ return new class extends Migration {
      */
     public function up(): void
     {
-        Schema::create('task_user', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('task_id')->constrained()->onDelete('cascade'); // Tạo khóa ngoại liên kết với bảng tasks
-            $table->foreignId('user_id')->constrained()->onDelete('cascade'); // Tạo khóa ngoại liên kết với bảng users
-            $table->timestamps();
-        });
+
+        if (!Schema::hasTable('task_user')) {
+            Schema::create('task_user', function (Blueprint $table) {
+                $table->id();
+                $table->foreignId('task_id')->constrained()->onDelete('cascade'); // Tạo khóa ngoại liên kết với bảng tasks
+                $table->foreignId('user_id')->constrained()->onDelete('cascade'); // Tạo khóa ngoại liên kết với bảng users
+                $table->timestamps();
+            });
+        }
     }
 
     /**

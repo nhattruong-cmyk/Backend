@@ -23,15 +23,19 @@ return new class extends Migration
      */
     public function down()
     {
-        Schema::create('assignments', function (Blueprint $table) {
-            $table->id();
-            $table->text('note')->nullable();
-            $table->timestamp('assigned_date')->default(DB::raw('CURRENT_TIMESTAMP'));
-            $table->unsignedBigInteger('role_id');
-            $table->unsignedBigInteger('user_id');
-            $table->unsignedBigInteger('task_id');
-           
-            $table->timestamps();
-        });
+
+        if (!Schema::hasTable('assignments')) {
+            Schema::create('assignments', function (Blueprint $table) {
+                $table->id();
+                $table->text('note')->nullable();
+                $table->timestamp('assigned_date')->default(DB::raw('CURRENT_TIMESTAMP'));
+                $table->unsignedBigInteger('role_id');
+                $table->unsignedBigInteger('user_id');
+                $table->unsignedBigInteger('task_id');
+               
+                $table->timestamps();
+            });
+        }
+
     }
 };

@@ -11,9 +11,12 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('departments', function (Blueprint $table) {
-            $table->unique('department_name');
-        });
+
+        if (!Schema::hasTable('departments')) {
+            Schema::table('departments', function (Blueprint $table) {
+                $table->unique('department_name');
+            });
+        }
     }
 
     /**

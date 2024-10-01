@@ -9,7 +9,7 @@ class Task extends Model
 {
     use HasFactory;
     protected $fillable = ['task_name', 'description', 'status', 'start_date', 'end_date', 'project_id'];
-    public function projects()
+    public function project()
     {
         return $this->belongsToMany(Project::class, 'project_task', 'task_id', 'project_id')
                     ->withTimestamps();

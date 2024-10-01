@@ -11,17 +11,21 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('assignments', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('task_id')->constrained('tasks')->onDelete('cascade');
-            $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
-            $table->foreignId('department_id')->constrained('departments')->onDelete('cascade');
-            $table->enum('status', ['pending', 'in progress', 'completed'])->default('pending');
-            $table->timestamps();
+        if (!Schema::hasTable('assignments')) {
+            Schema::create('assignments', function (Blueprint $table) {
+                $table->id();
+                $table->foreignId('task_id')->constrained('tasks')->onDelete('cascade');
+                $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
+                $table->foreignId('department_id')->constrained('departments')->onDelete('cascade');
+                $table->enum('status', ['pending', 'in progress', 'completed'])->default('pending');
+                $table->timestamps();
+    
+                // Đảm bảo mỗi cặp task_id, user_id, department_id là duy nhất
+                $table->unique(['task_id', 'user_id', 'department_id']);
+            });
+        }
 
-            // Đảm bảo mỗi cặp task_id, user_id, department_id là duy nhất
-            $table->unique(['task_id', 'user_id', 'department_id']);
-        });
+
     }
 
     /**

@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 use App\Models\Project;
+use App\Models\Department;
+
 
 use Illuminate\Http\Request;
 
@@ -75,21 +77,41 @@ class ProjectController extends Controller
             'status' => 'sometimes|required|integer|in:0,1,2',
             'user_id' => 'sometimes|required|exists:users,id',
             'department_ids' => 'sometimes|array', // Nhận mảng các department_id nếu được cung cấp
-            'department_ids.*' => 'exists:departments,id', // Kiểm tra từng phần tử trong mảng
+            'department_ids.*' => 'integer', // Đảm bảo tất cả phần tử là số nguyên
         ]);
     
-        // Nếu department_ids được cung cấp, cập nhật các phòng ban liên kết
-        if (isset($validatedData['department_ids'])) {
-            // Cập nhật các phòng ban liên kết
-            $project->departments()->sync($validatedData['department_ids']);
+        try {
+            // Nếu `department_ids` được cung cấp, kiểm tra tính hợp lệ của từng `department_id`
+            if (isset($validatedData['department_ids'])) {
+                // Lấy danh sách tất cả các `department_id` hợp lệ từ cơ sở dữ liệu
+                $validDepartmentIds = Department::pluck('id')->toArray();
+    
+                // Kiểm tra xem các `department_ids` nhập vào có tồn tại trong danh sách không
+                $invalidDepartments = array_diff($validatedData['department_ids'], $validDepartmentIds);
+    
+                // Nếu có bất kỳ `department_id` nào không tồn tại trong cơ sở dữ liệu, thông báo lỗi
+                if (!empty($invalidDepartments)) {
+                    return response()->json([
+                        'error' => 'The following departments do not exist in the database: ' . implode(', ', $invalidDepartments)
+                    ], 400);
+                }
+    
+                // Cập nhật các phòng ban liên kết nếu tất cả `department_id` hợp lệ
+                $project->departments()->sync($validatedData['department_ids']);
+            }
+    
+            // Cập nhật các thông tin khác của dự án nếu được cung cấp
+            $project->update($validatedData);
+    
+            // Trả về phản hồi JSON với thông tin dự án đã được cập nhật
+            return response()->json(['message' => 'Project updated successfully', 'project' => $project->load('departments')], 200);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Failed to update project: ' . $e->getMessage()], 500);
         }
-    
-        // Cập nhật các thông tin khác của dự án nếu được cung cấp
-        $project->update($validatedData);
-    
-        // Trả về phản hồi JSON với thông tin dự án đã được cập nhật
-        return response()->json($project->load('departments'), 200);
     }
+    
+    
+    
       
     /**
      * Remove the specified resource from storage.
