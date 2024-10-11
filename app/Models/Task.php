@@ -9,11 +9,12 @@ class Task extends Model
 {
     use HasFactory;
     protected $fillable = ['task_name', 'description', 'status', 'start_date', 'end_date', 'project_id'];
-    public function project()
+    public function projects()
     {
         return $this->belongsToMany(Project::class, 'project_task', 'task_id', 'project_id')
-            ->withTimestamps();
+                    ->withTimestamps();
     }
+    
 
     public function departments()
     {
@@ -30,7 +31,8 @@ class Task extends Model
     // Quan hệ nhiều-nhiều với User thông qua bảng task_user
     public function users()
     {
-        return $this->belongsToMany(User::class, 'task_user')->withTimestamps();
+        return $this->belongsToMany(User::class, 'task_user', 'task_id', 'user_id')
+            ->withTimestamps();
     }
     public function files()
     {
