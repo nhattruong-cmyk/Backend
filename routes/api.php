@@ -6,7 +6,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\DepartmentController;
-
+use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\TaskController;
 use App\Http\Controllers\AssignmentController;
@@ -26,7 +26,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/roles/{id}', [RoleController::class, 'update']);
     Route::delete('/roles/{id}', [RoleController::class, 'destroy']);
 
-
     //user
     Route::get('/users', [UserController::class, 'index']);
     Route::get('/users/{id}', [UserController::class, 'show']);
@@ -39,9 +38,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('departments/{id}', [DepartmentController::class, 'show']);
     Route::post('departments', [DepartmentController::class, 'store']);
     Route::post('departments/{department_id}/add-user', [DepartmentController::class, 'addUserToDepartment']);
-    Route::delete('departments/{department_id}/remove-user/{user_id}', [DepartmentController::class, 'removeUserFromDepartment']);
+    Route::post('/departments/{department_id}/remove-users', [DepartmentController::class, 'removeUserFromDepartment']);
     Route::put('departments/{department_id}', [DepartmentController::class, 'update']);
     Route::delete('departments/{department_id}', [DepartmentController::class, 'destroy']);
+    Route::post('/departments/{department_id}/add-users', [DepartmentController::class, 'addUsersToDepartment']);
 
     // Projects
     Route::get('/projects', [ProjectController::class, 'index']);
@@ -50,7 +50,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/projects/{id}', [ProjectController::class, 'update']);
     Route::delete('/projects/{id}', [ProjectController::class, 'destroy']);
     Route::post('/projects/{project_id}/add-tasks', [ProjectController::class, 'addTasks']); // Thêm nhiều task vào dự án
-
+    Route::post('/projects/{project_id}/add-departments', [ProjectController::class, 'addDepartmentToProject']);
+    Route::post('/projects/{project_id}/remove-departments', [ProjectController::class, 'removeDepartmentFromProject']);
 
     // Tasks
     Route::get('/tasks', [TaskController::class, 'index']);
@@ -67,6 +68,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/assignments/{id}', [AssignmentController::class, 'update']);
     Route::delete('/assignments/{id}', [AssignmentController::class, 'destroy']);
 
+    // Notification
+    Route::get('/notifications', [NotificationController::class, 'index']);
+    Route::get('/notifications/{id}', [NotificationController::class, 'show']);
+    Route::post('/notifications', [NotificationController::class, 'store']);
+    Route::put('/notifications/{id}/read', [NotificationController::class, 'markAsRead']);
+    Route::delete('/notifications/{id}', [NotificationController::class, 'destroy']);
+
     // Files liên kết với task cụ thể
     Route::get('/tasks/{id}/files', [FileController::class, 'getTaskFiles']); // Lấy danh sách file của task cụ thể
     Route::post('tasks/{taskId}/files', [FileController::class, 'uploadFiles'])->name('tasks.files.upload');
@@ -77,7 +85,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/files/{id}', [FileController::class, 'show']);
     Route::delete('/files/{id}', [FileController::class, 'destroy']); // xóa mềm file
     Route::put('/files/{id}', [FileController::class, 'update']);
-
 
     // Route cho restore và force delete
     Route::post('/files/{id}/restore', [FileController::class, 'restore']); // Khôi phục file đã bị soft delete
