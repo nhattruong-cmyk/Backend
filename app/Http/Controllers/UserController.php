@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Controller;
@@ -25,8 +26,6 @@ class UserController extends Controller
             return response()->json(['message' => 'Unauthorized'], 403);
         }
     }
-
-
     // Lấy thông tin chi tiết của một người dùng
     public function show(Request $request, $id)
     {
@@ -56,8 +55,6 @@ class UserController extends Controller
 
         return response()->json(['message' => 'Unauthorized'], 403);
     }
-
-
     // Tạo mới một người dùng
     public function store(Request $request)
     {
@@ -75,7 +72,6 @@ class UserController extends Controller
 
         return response()->json(['message' => 'User created successfully', 'user' => $user], 201);
     }
-
     // Cập nhật thông tin người dùng
     public function update(Request $request, $id)
     {
@@ -107,8 +103,6 @@ class UserController extends Controller
 
         return response()->json(['message' => 'Unauthorized'], 403);
     }
-
-
     // Xóa người dùng
     public function destroy(Request $request, $id)
     {
@@ -128,5 +122,4 @@ class UserController extends Controller
         // Các vai trò khác không được phép xóa người dùng
         return response()->json(['message' => 'Unauthorized'], 403);
     }
-
 }
