@@ -92,6 +92,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/files/{id}/force-delete', [FileController::class, 'forceDelete']); // Xóa hoàn toàn file (hard delete)
 
     //Route cho Comment
+    Route::get('/comments', [CommentController::class, 'index']);
+    Route::get('/comments/{id}', [CommentController::class, 'show']);
+
     Route::post('/comments', [CommentController::class, 'store']); // Tạo bình luận
     Route::put('/comments/{id}', [CommentController::class, 'update']); // Cập nhật bình luận
     Route::delete('/comments/{id}', [CommentController::class, 'destroy']); // Xóa bình luận

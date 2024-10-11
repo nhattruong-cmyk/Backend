@@ -21,13 +21,9 @@ class RoleController extends Controller
     /**
      * Store a newly created resource in storage.
      */
-    public function store(Request $request)
+    public function store(StoreRoleRequest $request)
     {
-        $request->validate([
-            'name' => 'required|unique:roles,name',
-            'description' => 'nullable',
-        ]);
-
+        // Nếu validation không thành công, Laravel sẽ tự động trả về lỗi.
         $role = Role::create([
             'name' => $request->name,
             'description' => $request->description,
@@ -35,7 +31,6 @@ class RoleController extends Controller
 
         return response()->json($role, 201);
     }
-
     /**
      * Display the specified resource.
      */
@@ -53,23 +48,18 @@ class RoleController extends Controller
     /**
      * Update the specified resource in storage.
      */
-    public function update(Request $request, $id)
+    public function update(UpdateRoleRequest $request, $id)
     {
-        $role = Role::find($id);
+        $role = Role::findOrFail($id);
+
+        $validatedData = $request->validated();
+
+        // Cập nhật thông tin phòng ban
+        $role->update($validatedData);
 
         if (!$role) {
             return response()->json(['message' => 'Role not found'], 404);
         }
-
-        $request->validate([
-            'name' => 'required|unique:roles,name,' . $role->id,
-            'description' => 'nullable',
-        ]);
-
-        $role->update([
-            'name' => $request->name,
-            'description' => $request->description,
-        ]);
 
         return response()->json($role);
     }
@@ -85,8 +75,19 @@ class RoleController extends Controller
             return response()->json(['message' => 'Role not found'], 404);
         }
 
-        $role->delete();
-
-        return response()->json(['message' => 'Role deleted successfully']);
+        try {
+            $role->delete();
+            return response()->json(['message' => 'Role deleted successfully']);
+        } catch (\Illuminate\Database\QueryException $e) {
+            // Mã lỗi 23000 là lỗi ràng buộc khóa ngoại
+            if ($e->getCode() === '23000') {
+                return response()->json([
+                    'error' => 'Role cannot be deleted because it is associated with other records (users).'
+                ], 400);
+            }
+            return response()->json([
+                'error' => 'Failed to delete role: ' . $e->getMessage()
+            ], 500);
+        }
     }
 }

@@ -33,15 +33,11 @@ class FileController extends Controller
     /**
      * Store a newly created resource in storage.
      */
-    public function store(Request $request, $taskId)
+    public function store(StoreFileRequest $request, $taskId)
     {
         Log::info('Request received for file upload', ['task_id' => $taskId]);
 
         try {
-            // Validate yêu cầu
-            $validatedData = $request->validate([
-                'file' => 'required|file|mimes:jpg,png,pdf,doc,docx,zip|max:20480',
-            ]);
 
             if ($request->hasFile('file')) {
                 Log::info('File detected: ' . $request->file('file')->getClientOriginalName());
@@ -66,7 +62,7 @@ class FileController extends Controller
     }
 
 
-    public function uploadFiles(Request $request, $taskId)
+    public function uploadFiles(UpdateFileRequest $request, $taskId)
     {
         // Kiểm tra xem task có tồn tại không
         $task = Task::find($taskId);
@@ -74,11 +70,6 @@ class FileController extends Controller
         if (!$task) {
             return response()->json(['error' => 'Task not found'], 404);
         }
-
-        // Validate việc upload file
-        $request->validate([
-            'files.*' => 'required|file|mimes:jpg,jpeg,png,pdf,docx|max:20480' // Hỗ trợ nhiều file
-        ]);
 
         $uploadedFiles = [];
 

@@ -3,7 +3,8 @@
 namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
-
+use Illuminate\Contracts\Validation\Validator;
+use Illuminate\Http\Exceptions\HttpResponseException;
 class StoreRoleRequest extends FormRequest
 {
     /**
@@ -11,7 +12,7 @@ class StoreRoleRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return false;
+        return true;
     }
 
     /**
@@ -22,7 +23,23 @@ class StoreRoleRequest extends FormRequest
     public function rules(): array
     {
         return [
-            //
+            'name' => 'required|unique:roles,name',
+            'description' => 'nullable',
         ];
+    }
+    public function messages(): array
+    {
+        return [
+            'name.required' => 'Tên vai trò là bắt buộc.',
+            'name.unique' => 'Tên vai trò đã tồn tại, vui lòng chọn tên khác.',
+            'description.nullable' => 'Mô tả có thể để trống.',
+        ];
+    }
+    protected function failedValidation(Validator $validator)
+    {
+        throw new HttpResponseException(response()->json([
+            'message' => 'Validation failed',
+            'errors' => $validator->errors()
+        ], 422));
     }
 }

@@ -6,6 +6,8 @@ use App\Models\Department;
 use App\Models\Notification;
 use App\Models\User;
 use Illuminate\Http\Request;
+use App\Http\Requests\StoreDepartmentRequest;
+use App\Http\Requests\UpdateDepartmentRequest;
 use Illuminate\Validation\Rule;
 
 class DepartmentController extends Controller
@@ -17,23 +19,12 @@ class DepartmentController extends Controller
         return response()->json($departments);
     }
 
-    public function store(Request $request)
+    public function store(StoreDepartmentRequest $request)
     {
         try {
-            // Xác thực dữ liệu đầu vào với quy tắc unique
-            $validatedData = $request->validate([
-                'department_name' => [
-                    'required',
-                    'string',
-                    'max:255',
-                    'unique:departments,department_name', // Quy tắc unique
-                ],
-                'description' => 'nullable|string',
-                'user_ids' => 'sometimes|array', // Mảng ID của người dùng
-                'user_ids.*' => 'exists:users,id' // Mỗi ID phải hợp lệ trong bảng users
-            ], [
-                'department_name.unique' => 'Tên phòng ban đã tồn tại. Vui lòng chọn tên khác.',
-            ]);
+            // Dữ liệu đã được xác thực bởi StoreDepartmentRequest
+            $validatedData = $request->validated();
+
 
             // Tạo phòng ban mới
             $department = Department::create($validatedData);
@@ -129,20 +120,14 @@ class DepartmentController extends Controller
     }
 
     // Hàm cập nhật phòng ban và gán người dùng
-    public function update(Request $request, $departmentId)
+    public function update(UpdateDepartmentRequest $request, $departmentId)
     {
         try {
             // Tìm phòng ban theo ID
             $department = Department::findOrFail($departmentId);
-    
-            // Xác thực đầu vào chỉ cho phép cập nhật tên và mô tả
-            $validatedData = $request->validate([
-                'department_name' => 'sometimes|string|max:255|unique:departments,department_name,' . $departmentId, // Kiểm tra tên duy nhất, ngoại trừ phòng ban hiện tại
-                'description' => 'nullable|string'
-            ], [
-                'department_name.unique' => 'Tên phòng ban đã tồn tại. Vui lòng chọn tên khác.'
-            ]);
-    
+
+            $validatedData = $request->validated();
+
             // Lưu trữ thông tin ban đầu của phòng ban để so sánh sau khi cập nhật
             $originalName = $department->department_name;
             $originalDescription = $department->description;
