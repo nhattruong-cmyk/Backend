@@ -21,7 +21,16 @@ class CommentController extends Controller
     {
 
         $validatedData = $request->validated();
+        // Kiểm tra nếu parent_id được cung cấp
+        if (isset($validatedData['parent_id'])) {
+            // Lấy bình luận cha
+            $parentComment = Comment::find($validatedData['parent_id']);
 
+            // Kiểm tra nếu bình luận cha tồn tại và thuộc cùng task
+            if ($parentComment && $parentComment->task_id !== $validatedData['task_id']) {
+                return response()->json(['message' => 'parent_id phải cùng task mới có thể trả lời'], 400);
+            }
+        }
         // Tạo bình luận
         $comment = Comment::create([
             'task_id' => $validatedData['task_id'],

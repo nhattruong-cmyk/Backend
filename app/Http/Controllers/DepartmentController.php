@@ -73,29 +73,29 @@ class DepartmentController extends Controller
                 'user_ids.*.exists' => 'Một hoặc nhiều user không tồn tại trong hệ thống.',
                 'user_id.exists' => 'User không tồn tại trong hệ thống.'
             ]);
-    
+
             // Kiểm tra xem `user_ids` hay `user_id` được cung cấp
             $userIds = [];
-    
+
             // Nếu là `user_ids` (mảng), lấy toàn bộ giá trị trong mảng
             if (isset($validatedData['user_ids'])) {
                 $userIds = $validatedData['user_ids'];
             }
-    
+
             // Nếu là `user_id` (đơn lẻ), thêm vào mảng `userIds`
             if (isset($validatedData['user_id'])) {
                 $userIds[] = $validatedData['user_id'];
             }
-    
+
             // Tìm phòng ban theo ID
             $department = Department::findOrFail($department_id);
-    
+
             // Gán user vào phòng ban, nếu user đã tồn tại thì bỏ qua (syncWithoutDetaching)
             $department->users()->syncWithoutDetaching($userIds);
-    
+
             // Lấy danh sách user được thêm vào để tạo thông báo
             $users = User::whereIn('id', $userIds)->get();
-    
+
             foreach ($users as $user) {
                 Notification::create([
                     'user_id' => $user->id,
@@ -103,7 +103,7 @@ class DepartmentController extends Controller
                     'read' => false
                 ]);
             }
-    
+
             return response()->json([
                 'message' => 'Users added to department successfully.',
                 'department' => $department->load('users')
@@ -131,14 +131,14 @@ class DepartmentController extends Controller
             // Lưu trữ thông tin ban đầu của phòng ban để so sánh sau khi cập nhật
             $originalName = $department->department_name;
             $originalDescription = $department->description;
-    
+
             // Cập nhật tên và mô tả của phòng ban nếu có
             $department->update($validatedData);
-    
+
             // Kiểm tra nếu có thay đổi tên hoặc mô tả phòng ban
             $hasNameChanged = isset($validatedData['department_name']) && $originalName !== $validatedData['department_name'];
             $hasDescriptionChanged = isset($validatedData['description']) && $originalDescription !== $validatedData['description'];
-    
+
             // Gửi thông báo nếu có thay đổi tên hoặc mô tả
             if ($hasNameChanged || $hasDescriptionChanged) {
                 $message = 'Phòng ban của bạn đã có cập nhật mới: ';
@@ -148,7 +148,7 @@ class DepartmentController extends Controller
                 if ($hasDescriptionChanged) {
                     $message .= 'Mô tả phòng ban đã được thay đổi.';
                 }
-    
+
                 // Gửi thông báo đến tất cả các user trong phòng ban
                 foreach ($department->users as $user) {
                     Notification::create([
@@ -157,12 +157,12 @@ class DepartmentController extends Controller
                     ]);
                 }
             }
-    
+
             return response()->json([
                 'message' => 'Department updated successfully.',
                 'department' => $department->load('users')
             ], 200);
-    
+
         } catch (\Illuminate\Validation\ValidationException $e) {
             // Bắt lỗi xác thực và trả về thông báo lỗi
             return response()->json([
@@ -175,7 +175,7 @@ class DepartmentController extends Controller
             ], 500);
         }
     }
-    
+
     // lấy địa chỉ phòng ban và show lên màng hình
     public function show($id)
     {
@@ -199,36 +199,36 @@ class DepartmentController extends Controller
             'user_ids' => 'sometimes|array', // Chấp nhận mảng các ID
             'user_ids.*' => 'integer|exists:users,id' // Kiểm tra tính hợp lệ của từng ID trong mảng
         ]);
-    
+
         // Tìm phòng ban theo ID
         $department = Department::find($department_id);
-    
+
         // Kiểm tra nếu phòng ban không tồn tại
         if (!$department) {
             return response()->json(['message' => 'Department not found'], 404);
         }
-    
+
         // Lấy danh sách user IDs từ request, ưu tiên sử dụng `user_ids` nếu có, nếu không sử dụng `user_id`
         $userIds = $request->has('user_ids') ? $request->input('user_ids') : [$request->input('user_id')];
-    
+
         // Kiểm tra những user đang thuộc phòng ban hiện tại
         $existingUserIds = $department->users()
             ->whereIn('users.id', $userIds) // Sử dụng `users.id` để xác định đúng cột
             ->pluck('users.id')
             ->toArray();
-    
+
         // Nếu không có user nào trong phòng ban, trả về thông báo lỗi
         if (empty($existingUserIds)) {
             return response()->json(['error' => 'No users found in the department for removal.'], 400);
         }
-    
+
         try {
             // Xóa người dùng khỏi phòng ban
             $department->users()->detach($existingUserIds);
-    
+
             // Lấy danh sách user ra khỏi phòng ban để tạo thông báo
             $users = User::whereIn('id', $existingUserIds)->get();
-    
+
             // Tạo thông báo cho mỗi người dùng
             foreach ($users as $user) {
                 Notification::create([
@@ -237,14 +237,14 @@ class DepartmentController extends Controller
                     'read' => false,
                 ]);
             }
-    
+
             return response()->json(['message' => 'Users removed from department and notified successfully.'], 200);
-    
+
         } catch (\Exception $e) {
             return response()->json(['error' => 'Failed to remove users from department: ' . $e->getMessage()], 500);
         }
     }
-    
+
     // Xóa phòng ban
     public function destroy($id)
     {
@@ -254,8 +254,23 @@ class DepartmentController extends Controller
             return response()->json(['message' => 'Department not found'], 404);
         }
 
-        $department->delete();
+        try {
+            // Thử xóa phòng ban
+            $department->delete();
 
-        return response()->json(['message' => 'Department deleted successfully']);
+            return response()->json(['message' => 'Department deleted successfully']);
+        } catch (\Illuminate\Database\QueryException $e) {
+            // Bắt lỗi khóa ngoại
+            if ($e->getCode() === '23000') {
+                return response()->json([
+                    'error' => 'Department cannot be deleted because it is associated with users, projects, or tasks.'
+                ], 400);
+            }
+
+            // Bắt lỗi khác
+            return response()->json([
+                'error' => 'Failed to delete department: ' . $e->getMessage()
+            ], 500);
+        }
     }
 }
