@@ -1,8 +1,9 @@
 <?php
 
 namespace App\Http\Requests;
-
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Contracts\Validation\Validator;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Validation\Rule;
 
 class UpdateProjectRequest extends FormRequest
@@ -24,6 +25,7 @@ class UpdateProjectRequest extends FormRequest
     {
         return [
             'project_name' => [
+                'sometimes',  // Cho phép bỏ qua nếu không được cung cấp
                 'required',
                 'string',
                 'max:255',
@@ -36,6 +38,7 @@ class UpdateProjectRequest extends FormRequest
             'user_id' => 'sometimes|required|exists:users,id',
         ];
     }
+    
 
     public function messages()
     {
@@ -44,10 +47,18 @@ class UpdateProjectRequest extends FormRequest
             'project_name.max' => 'The project name may not be greater than 255 characters.',
             'start_date.required' => 'The start date is required.',
             'end_date.after_or_equal' => 'The end date must be after or equal to the start date.',
-            'status.in' => 'The status must be one of the following values: 1,2,3,4',
+            'status.in' => 'Status must be one of the following: 1,2,3,4',
             'user_id.exists' => 'The user ID must exist in the users table.',
             'project_name.unique' => 'The project name has already been taken. Please choose a different name.',
 
         ];
+    }
+
+    protected function failedValidation(Validator $validator)
+    {
+        throw new HttpResponseException(response()->json([
+            'message' => 'Validation failed',
+            'errors' => $validator->errors(),
+        ], 422));
     }
 }

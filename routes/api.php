@@ -76,6 +76,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/assignments', [AssignmentController::class, 'store']);
     Route::put('/assignments/{id}', [AssignmentController::class, 'update']);
     Route::delete('/assignments/{id}', [AssignmentController::class, 'destroy']);
+    Route::get('/tasks/{id}/departments', [AssignmentController::class, 'getDepartmentsByTask']);
+    Route::get('/departments/{id}/users', [AssignmentController::class, 'getUsersByDepartment']);
 
     // Notification
     Route::get('/notifications', [NotificationController::class, 'index']);
