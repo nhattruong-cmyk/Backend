@@ -77,7 +77,11 @@ class NotificationController extends Controller
     public function destroy(string $id)
     {
         $notification = Notification::findOrFail($id);
+    
+        // Xóa mềm thông báo
         $notification->delete();
-        return response()->json(['message' => 'Notification deleted'], 200);
+    
+        return response()->json(['message' => 'Notification soft deleted'], 200);
     }
+    
 }

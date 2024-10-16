@@ -4,10 +4,12 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Project extends Model
 {
     use HasFactory;
+    use SoftDeletes;
     protected $fillable = [
         'project_name', 'description', 'start_date', 'end_date', 'status', 'user_id',
     ];
@@ -16,9 +18,11 @@ class Project extends Model
         public function getStatusAttribute($value)
         {
             $statuses = [
-                0 => 'pending',
-                1 => 'in progress',
-                2 => 'completed'
+
+                1 => 'to do',
+                2 => 'in progress',
+                3 => 'preview',
+                4 => 'done'
             ];
         
             // Kiểm tra nếu khóa tồn tại trong mảng
@@ -29,16 +33,20 @@ class Project extends Model
         public function setStatusAttribute($value)
         {
             $statuses = [
-                'pending' => 0,
-                'in progress' => 1,
-                'completed' => 2,
-                0 => 0, // Thêm cho phép nhận giá trị số
+                'to do' => 1,
+                'in progress' => 2,
+                'preview' => 3,
+                'done' => 4,
+                
                 1 => 1,
                 2 => 2,
+                3 => 3,
+                4 => 4,
+
             ];
         
             // Đặt giá trị status thành 0 (pending) nếu không tìm thấy
-            $this->attributes['status'] = $statuses[$value] ?? 0;
+            $this->attributes['status'] = $statuses[$value] ?? 1;
         }
         
         public function user()
@@ -56,11 +64,5 @@ class Project extends Model
             return $this->belongsToMany(Task::class, 'project_task', 'project_id', 'task_id')
                         ->withTimestamps();
         }
-        
-        
-        
-        
-            
-    
         
 }

@@ -33,7 +33,7 @@ class StoreProjectRequest extends FormRequest
             'description' => 'nullable|string',
             'start_date' => 'required|date',
             'end_date' => 'nullable|date|after_or_equal:start_date',
-            'status' => 'required|integer|in:0,1,2',
+            'status' => 'required|integer|in:1,2,3,4',
             'user_id' => 'required|exists:users,id',
         ];
     }
@@ -43,7 +43,7 @@ class StoreProjectRequest extends FormRequest
         return [
             'project_name.required' => 'Tên dự án là bắt buộc.',
             'start_date.required' => 'Ngày bắt đầu là bắt buộc.',
-            'status.in' => 'Trạng thái phải là một trong các giá trị: 0, 1, 2.',
+            'status.in' => 'Trạng thái phải là một trong các giá trị: 1,2,3,4',
             'user_id.exists' => 'Người dùng này không tồn tại.',
             'project_name.unique' => 'The project name has already been taken. Please choose a different name.',
         ];

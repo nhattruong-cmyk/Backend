@@ -4,17 +4,18 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Task extends Model
 {
     use HasFactory;
     protected $fillable = ['task_name', 'description', 'status', 'start_date', 'end_date', 'project_id'];
+    use SoftDeletes;
     public function projects()
     {
         return $this->belongsToMany(Project::class, 'project_task', 'task_id', 'project_id')
                     ->withTimestamps();
     }
-    
 
     public function departments()
     {
@@ -39,31 +40,38 @@ class Task extends Model
         return $this->hasMany(File::class, 'task_id'); // Liên kết với bảng files qua task_id
     }
 
-
     public function getStatusAttribute($value)
     {
         $statuses = [
-            0 => 'pending',
-            1 => 'in progress',
-            2 => 'completed'
-        ];
 
+            1 => 'to do',
+            2 => 'in progress',
+            3 => 'preview',
+            4 => 'done'
+        ];
+    
+        // Kiểm tra nếu khóa tồn tại trong mảng
         return $statuses[$value] ?? 'unknown'; // Trả về 'unknown' nếu không tìm thấy giá trị phù hợp
     }
-
+    
+    // Tạo mutator để lưu status dưới dạng số
     public function setStatusAttribute($value)
     {
         $statuses = [
-            'pending' => 0,
-            'in progress' => 1,
-            'completed' => 2,
-            0 => 0, // Chấp nhận cả số
+            'to do' => 1,
+            'in progress' => 2,
+            'preview' => 3,
+            'done' => 4,
+            
             1 => 1,
             2 => 2,
+            3 => 3,
+            4 => 4,
+
         ];
-
-        $this->attributes['status'] = $statuses[$value] ?? 0; // Trạng thái mặc định là 'pending'
+    
+        // Đặt giá trị status thành 0 (pending) nếu không tìm thấy
+        $this->attributes['status'] = $statuses[$value] ?? 1;
     }
-
 
 }

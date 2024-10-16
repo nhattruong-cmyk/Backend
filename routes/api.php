@@ -12,6 +12,9 @@ use App\Http\Controllers\TaskController;
 use App\Http\Controllers\AssignmentController;
 use App\Http\Controllers\FileController;
 use App\Http\Controllers\CommentController;
+use App\Http\Controllers\ActivityLogController;
+
+
 
 
 Route::post('/register', [AuthController::class, 'register']);
@@ -31,7 +34,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/users/{id}', [UserController::class, 'show']);
     Route::post('users', [UserController::class, 'store']);
     Route::put('/users/{id}', [UserController::class, 'update']);
-    Route::delete('/users/{id}', [UserController::class, 'destroy']);
+    Route::delete('/users/{id}', [UserController::class, 'destroy'])->name('destroy');
+    Route::patch('/users/{id}/restore', [UserController::class, 'restore'])->name('restore');
+    Route::get('/users/trashed', [UserController::class, 'getTrashedUsers'])->name('trashed');
+
 
     //department
     Route::get('departments', [DepartmentController::class, 'index']);
@@ -53,6 +59,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/projects/{project_id}/add-departments', [ProjectController::class, 'addDepartmentToProject']);
     Route::post('/projects/{project_id}/remove-departments', [ProjectController::class, 'removeDepartmentFromProject']);
 
+
     // Tasks
     Route::get('/tasks', [TaskController::class, 'index']);
     Route::get('/tasks/{id}', [TaskController::class, 'show']);
@@ -60,6 +67,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/tasks/{id}', [TaskController::class, 'update']);
     Route::delete('/tasks/{id}', [TaskController::class, 'destroy']);
     Route::post('/tasks/{task_id}/add-users', [TaskController::class, 'addUsers']); // Thêm nhiều user vào task
+    Route::get('/projects/{id}/departments', [TaskController::class, 'getDepartmentsByProjectId']);
+
 
     // Assignments
     Route::get('/assignments', [AssignmentController::class, 'index']);
@@ -100,6 +109,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/comments/{id}', [CommentController::class, 'destroy']); // Xóa bình luận
     Route::get('/tasks/{taskId}/comments', [CommentController::class, 'getCommentsByTask']); // Lấy bình luận của task
 
+
+    // Route lấy tất cả lịch sử
+    Route::get('/activity-logs', [ActivityLogController::class, 'index']);
+
+    // Route lấy lịch sử của một user cụ thể
+    Route::get('/activity-logs/user/{userId}', [ActivityLogController::class, 'getUserLogs']);
 });
 
 

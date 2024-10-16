@@ -4,6 +4,7 @@ namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens; // Thêm trait này
@@ -13,6 +14,7 @@ class User extends Authenticatable
 {
     use HasApiTokens, HasFactory, Notifiable; // Thêm HasApiTokens vào đây
 
+    use SoftDeletes;
     /**
      * The attributes that are mass assignable.
      *
@@ -64,7 +66,6 @@ class User extends Authenticatable
         return $this->hasMany(Project::class, 'manager_id');
     }
 
-
     // Quan hệ nhiều-nhiều với Task thông qua bảng phụ task_user
     public function tasks()
     {
@@ -76,5 +77,10 @@ class User extends Authenticatable
     public function assignments()
     {
         return $this->hasMany(Assignment::class);
+    }
+    // Mối quan hệ với bảng activity_logs
+    public function activityLogs()
+    {
+        return $this->hasMany(ActivityLog::class);
     }
 }

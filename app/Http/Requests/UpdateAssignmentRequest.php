@@ -23,7 +23,7 @@ class UpdateAssignmentRequest extends FormRequest
     public function rules()
     {
         return [
-            'status' => 'sometimes|integer|in:0,1,2',
+            'status' => 'sometimes|integer|in:1,2,3,4',
             'user_id' => 'sometimes|exists:users,id',
             'department_id' => 'sometimes|exists:departments,id',
         ];
@@ -32,7 +32,7 @@ class UpdateAssignmentRequest extends FormRequest
     public function messages()
     {
         return [
-            'status.in' => 'Status must be one of the following values: 0, 1, or 2.',
+            'status.in' => 'Status must be one of the following values: 1,2,3,4',
             'user_id.exists' => 'The selected user does not exist.',
             'department_id.exists' => 'The selected department does not exist.',
         ];

@@ -13,8 +13,6 @@ class Department extends Model
         'description',
     ];
 
-
-
     // Quan hệ nhiều-nhiều giữa Department và User
     public function users()
     {

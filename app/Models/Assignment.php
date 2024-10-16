@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Assignment extends Model
 {
@@ -15,6 +16,7 @@ class Assignment extends Model
         'department_id',
         'status',
     ];
+    use SoftDeletes;
     // Quan hệ với Task
     public function task()
     {
@@ -34,28 +36,34 @@ class Assignment extends Model
     public function getStatusAttribute($value)
     {
         $statuses = [
-            0 => 'pending',
-            1 => 'in progress',
-            2 => 'completed'
+
+            1 => 'to do',
+            2 => 'in progress',
+            3 => 'preview',
+            4 => 'done'
         ];
-
-        return $statuses[$value] ?? 'unknown';
+    
+        // Kiểm tra nếu khóa tồn tại trong mảng
+        return $statuses[$value] ?? 'unknown'; // Trả về 'unknown' nếu không tìm thấy giá trị phù hợp
     }
-
-    /**
-     * Mutator để lưu 'status' dưới dạng số
-     */
+    
+    // Tạo mutator để lưu status dưới dạng số
     public function setStatusAttribute($value)
     {
         $statuses = [
-            'pending' => 0,
-            'in progress' => 1,
-            'completed' => 2,
-            0 => 0,
+            'to do' => 1,
+            'in progress' => 2,
+            'preview' => 3,
+            'done' => 4,
+            
             1 => 1,
             2 => 2,
-        ];
+            3 => 3,
+            4 => 4,
 
-        $this->attributes['status'] = $statuses[$value] ?? 0;
+        ];
+    
+        // Đặt giá trị status thành 0 (pending) nếu không tìm thấy
+        $this->attributes['status'] = $statuses[$value] ?? 1;
     }
 }

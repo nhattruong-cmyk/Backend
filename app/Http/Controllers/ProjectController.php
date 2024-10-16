@@ -8,8 +8,11 @@ use App\Http\Requests\StoreProjectRequest;
 use Exception;
 use App\Http\Requests\UpdateProjectRequest;
 use App\Models\User;
+use App\Models\ActivityLog;
 use App\Models\Notification;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+
 
 class ProjectController extends Controller
 {
@@ -34,7 +37,15 @@ class ProjectController extends Controller
             // Tạo dự án mới với dữ liệu đã xác thực
             $project = Project::create($validatedData);
 
-            // Không cần gán `departments` vào project tại đây vì đã có hàm riêng
+            // Ghi lại lịch sử hoạt động sau khi tạo project thành công
+            ActivityLog::create([
+                'user_id' => Auth::user()->id, // Người thực hiện hành động
+                'loggable_id' => $project->id, // ID của dự án vừa được tạo
+                'loggable_type' => 'App\Models\Project', // Loại đối tượng là Project
+                'action' => 'created', // Hành động là tạo mới
+                'changes' => json_encode($validatedData), // Lưu lại dữ liệu vừa được tạo
+            ]);
+
             // Trả về phản hồi JSON với dữ liệu dự án đã tạo
             return response()->json([
                 'message' => 'Project created successfully',
@@ -45,6 +56,7 @@ class ProjectController extends Controller
             return response()->json(['error' => 'Failed to create project: ' . $e->getMessage()], 500);
         }
     }
+
 
     /**
      * Display the specified resource.
@@ -64,8 +76,23 @@ class ProjectController extends Controller
         $project = Project::findOrFail($id);
 
         try {
-            // Cập nhật các thông tin khác của dự án nếu được cung cấp
+            // Lấy dữ liệu cũ để ghi lại sự thay đổi
+            $originalData = $project->getOriginal();
+
+            // Cập nhật các thông tin của dự án
             $project->update($request->validated());
+
+            // Ghi lại lịch sử hoạt động sau khi cập nhật project thành công
+            ActivityLog::create([
+                'user_id' => Auth::user()->id, // Người thực hiện hành động
+                'loggable_id' => $project->id, // ID của dự án vừa được cập nhật
+                'loggable_type' => 'App\Models\Project', // Loại đối tượng là Project
+                'action' => 'updated', // Hành động là cập nhật
+                'changes' => json_encode([
+                    'before' => $originalData, // Dữ liệu trước khi cập nhật
+                    'after' => $project->getChanges() // Dữ liệu sau khi cập nhật
+                ]),
+            ]);
 
             // Nếu có `user_id` được cập nhật, gửi thông báo đến người dùng
             if ($request->has('user_id')) {
@@ -84,10 +111,11 @@ class ProjectController extends Controller
                 'message' => 'Project updated successfully',
                 'project' => $project->load('departments')
             ], 200);
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             return response()->json(['error' => 'Failed to update project: ' . $e->getMessage()], 500);
         }
     }
+
 
     public function addDepartmentToProject(Request $request, string $project_id)
     {
@@ -121,15 +149,25 @@ class ProjectController extends Controller
             // Thêm các phòng ban vào dự án (sử dụng `syncWithoutDetaching` để tránh mất các phòng ban đã có trước đó)
             $project->departments()->syncWithoutDetaching($validatedData['department_ids']);
 
+            // Ghi lại lịch sử hoạt động sau khi thêm phòng ban
+            ActivityLog::create([
+                'user_id' => Auth::user()->id, // Người thực hiện hành động
+                'loggable_id' => $project->id, // ID của dự án
+                'loggable_type' => 'App\Models\Project', // Loại đối tượng (Project)
+                'action' => 'added_department', // Hành động thêm phòng ban
+                'changes' => json_encode(['added_departments' => $validatedData['department_ids']]), // Lưu danh sách các phòng ban được thêm
+            ]);
+
             // Trả về phản hồi với thông tin dự án đã được cập nhật
             return response()->json([
                 'message' => 'Departments added to project successfully',
                 'project' => $project->load('departments')
             ], 200);
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             return response()->json(['error' => 'Failed to add departments to project: ' . $e->getMessage()], 500);
         }
     }
+
 
     public function removeDepartmentFromProject(Request $request, string $project_id)
     {
@@ -163,30 +201,58 @@ class ProjectController extends Controller
             // Xóa các phòng ban được chỉ định ra khỏi project
             $project->departments()->detach($validatedData['department_ids']);
 
+            // Ghi lại lịch sử hoạt động sau khi xóa phòng ban
+            ActivityLog::create([
+                'user_id' => Auth::user()->id, // Người thực hiện hành động
+                'loggable_id' => $project->id, // ID của dự án
+                'loggable_type' => 'App\Models\Project', // Loại đối tượng (Project)
+                'action' => 'removed_department', // Hành động xóa phòng ban
+                'changes' => json_encode(['removed_departments' => $validatedData['department_ids']]), // Lưu danh sách các phòng ban bị xóa
+            ]);
+
             return response()->json([
                 'message' => 'Departments removed from project successfully',
                 'project' => $project->load('departments')
             ], 200);
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             return response()->json(['error' => 'Failed to remove departments from project: ' . $e->getMessage()], 500);
         }
     }
-
 
     /**
      * Remove the specified resource from storage.
      */
     public function destroy(string $id)
     {
+        // Tìm dự án theo ID
         $project = Project::find($id);
+
         if (!$project) {
             return response()->json(['message' => 'Project not found'], 404);
         }
-        $project->delete();
-        return response()->json(['message' => 'Project deleted successfully']);
- 
- 
+
+        try {
+            // Lưu dữ liệu dự án trước khi xóa để ghi lại lịch sử
+            $projectData = $project->toArray();
+
+            // Xóa mềm dự án
+            $project->delete();
+
+            // Ghi lại lịch sử hoạt động sau khi xóa mềm dự án
+            ActivityLog::create([
+                'user_id' => Auth::user()->id, // Người thực hiện hành động
+                'loggable_id' => $id, // ID của dự án vừa bị xóa
+                'loggable_type' => 'App\Models\Project', // Loại đối tượng là Project
+                'action' => 'soft_deleted', // Hành động xóa mềm dự án
+                'changes' => json_encode($projectData), // Lưu lại dữ liệu của dự án bị xóa
+            ]);
+
+            return response()->json(['message' => 'Project soft deleted successfully'], 200);
+        } catch (Exception $e) {
+            return response()->json(['error' => 'Failed to soft delete project: ' . $e->getMessage()], 500);
+        }
     }
+
 
 
 }

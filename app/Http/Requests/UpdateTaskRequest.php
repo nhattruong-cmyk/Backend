@@ -25,7 +25,7 @@ class UpdateTaskRequest extends FormRequest
         return [
             'task_name' => 'sometimes|required|string|max:255',
             'description' => 'nullable|string',
-            'status' => 'sometimes|required|integer|in:1,2,3',
+            'status' => 'sometimes|required|integer|in:1,2,3,4',
             'start_date' => 'nullable|date',
             'end_date' => 'nullable|date|after_or_equal:start_date',
             'project_id' => 'sometimes|required|exists:projects,id',
@@ -40,7 +40,7 @@ class UpdateTaskRequest extends FormRequest
     {
         return [
             'task_name.required' => 'Task name is required.',
-            'status.in' => 'Status must be one of the following: 1, 2, or 3.',
+            'status.in' => 'Status must be one of the following: 1,2,3,4',
             'project_id.exists' => 'The selected project does not exist.',
             'delete_file_ids.*.exists' => 'One or more file IDs do not exist.',
         ];
