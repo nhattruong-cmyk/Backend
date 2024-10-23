@@ -26,6 +26,7 @@ class UpdateCommentRequest extends FormRequest
             'comment' => 'required|string|max:500',
             'task_id' => 'required|exists:tasks,id',
             'parent_id' => 'nullable|exists:comments,id', // Chỉ cần kiểm tra nếu có parent_id
+            'files.*' => 'nullable|file|mimes:jpg,jpeg,png,pdf,doc,docx|max:2048', // Bổ sung validate cho file
 
         ];
     }
@@ -37,7 +38,8 @@ class UpdateCommentRequest extends FormRequest
             'task_id.required' => 'ID công việc là bắt buộc.',
             'task_id.exists' => 'Công việc được chọn không tồn tại.',
             'parent_id.exists' => 'ID phản hồi không tồn tại.',
-
+            'files.*.mimes' => 'File phải là jpg, jpeg, png, pdf, doc hoặc docx.',
+            'files.*.max' => 'Dung lượng file tối đa là 2MB.',
         ];
     }
     protected function failedValidation(Validator $validator)

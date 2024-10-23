@@ -4,8 +4,11 @@ namespace App\Http\Controllers;
 use App\Http\Requests\StoreCommentRequest;
 use App\Http\Requests\UpdateCommentRequest;
 use App\Models\Comment;
+use App\Models\File;
+
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 
 class CommentController extends Controller
 {
@@ -19,31 +22,63 @@ class CommentController extends Controller
     // Tạo bình luận mới
     public function store(StoreCommentRequest $request)
     {
-
         $validatedData = $request->validated();
-        // Kiểm tra nếu parent_id được cung cấp
+        Log::info('Validated Data:', $validatedData);
+
+        // Nếu có parent_id, kiểm tra
         if (isset($validatedData['parent_id'])) {
-            // Lấy bình luận cha
+            // Tìm bình luận cha
             $parentComment = Comment::find($validatedData['parent_id']);
 
-            // Kiểm tra nếu bình luận cha tồn tại và thuộc cùng task
-            if ($parentComment && $parentComment->task_id !== $validatedData['task_id']) {
-                return response()->json(['message' => 'parent_id phải cùng task mới có thể trả lời'], 400);
+            // Kiểm tra xem bình luận cha có tồn tại không
+            if (!$parentComment) {
+                return response()->json(['message' => 'Bình luận cha không tồn tại.'], 400);
+            }
+
+            // Ghi log thông tin task_id để kiểm tra
+            Log::info('Task ID from Request:', ['task_id' => $validatedData['task_id']]);
+            Log::info('Parent Comment Task ID:', ['parent_id' => $parentComment->task_id]);
+
+            // Kiểm tra xem bình luận cha có thuộc task này không
+            if ($parentComment->task_id !== (int) $validatedData['task_id']) {
+                return response()->json(['message' => 'Bình luận cha phải cùng task mới có thể trả lời.'], 400);
             }
         }
+
         // Tạo bình luận
         $comment = Comment::create([
             'task_id' => $validatedData['task_id'],
             'user_id' => Auth::id(),
             'comment' => $validatedData['comment'],
-            'parent_id' => $validatedData['parent_id'] ?? null, // null nếu là bình luận gốc
+            'parent_id' => $validatedData['parent_id'] ?? null,
         ]);
+
+        // Xử lý đính kèm file (nếu có)
+        if ($request->hasFile('files')) {
+            foreach ($request->file('files') as $file) {
+                $filePath = $file->store('comment_files', 'public');
+                $fileName = $file->getClientOriginalName();
+
+                // Lưu file vào bảng Files
+                File::create([
+                    'file_name' => $fileName,
+                    'file_path' => $filePath,
+                    'task_id' => $validatedData['task_id'],
+                    'comment_id' => $comment->id,
+                    'uploaded_by' => Auth::id(),
+                ]);
+            }
+        }
 
         return response()->json([
             'message' => 'Comment created successfully',
             'comment' => $comment,
         ], 201);
     }
+
+
+
+
 
     // Cập nhật bình luận
     public function update(UpdateCommentRequest $request, $id)
@@ -70,8 +105,10 @@ class CommentController extends Controller
                 return response()->json(['message' => 'Parent comment must belong to the same task'], 400);
             }
         }
+
         // Dữ liệu đã được validate qua UpdateCommentRequest
         $validatedData = $request->validated();
+
 
         // Cập nhật task_id cùng với comment nếu nó có trong request
         $comment->update([
@@ -80,7 +117,22 @@ class CommentController extends Controller
             'parent_id' => $validatedData['parent_id'] ?? $comment->parent_id, // Cập nhật parent_id nếu có
 
         ]);
+        // Nếu có file đính kèm thì xử lý
+        if ($request->hasFile('files')) {
+            foreach ($request->file('files') as $file) {
+                $filePath = $file->store('comment_files', 'public');
+                $fileName = $file->getClientOriginalName();
 
+                // Tạo mới file liên kết với bình luận
+                File::create([
+                    'file_name' => $fileName,
+                    'file_path' => $filePath,
+                    'task_id' => $request->task_id,
+                    'comment_id' => $comment->id,
+                    'uploaded_by' => Auth::id(), // Người upload
+                ]);
+            }
+        }
         return response()->json([
             'message' => 'Comment updated successfully',
             'comment' => $comment,
@@ -91,20 +143,41 @@ class CommentController extends Controller
     // Xóa bình luận
     public function destroy($id)
     {
-        $comment = Comment::find($id);
+        // Tìm bình luận với các phản hồi (replies) và file liên quan
+        $comment = Comment::with('replies', 'files')->findOrFail($id);
 
-        if (!$comment) {
-            return response()->json(['message' => 'Comment not found'], 404);
+        // Kiểm tra nếu người dùng là admin (role = 1)
+        if (Auth::user()->role_id === 1) {
+            // Nếu là admin, xóa tất cả các bình luận con (replies)
+            foreach ($comment->replies as $reply) {
+                // Xóa file liên quan đến bình luận con nếu có
+                foreach ($reply->files as $file) {
+                    $file->delete();
+                }
+                // Xóa bình luận con
+                $reply->delete();
+            }
+
+            // Xóa tất cả các file liên quan đến bình luận gốc
+            foreach ($comment->files as $file) {
+                $file->delete();
+            }
+        } else {
+            // Nếu không phải là admin, chỉ cho phép người dùng xóa bình luận của chính họ
+            if ($comment->user_id !== Auth::id()) {
+                return response()->json(['message' => 'Bạn không có quyền xóa bình luận này.'], 403);
+            }
         }
 
-        if ($comment->user_id != Auth::id()) {
-            return response()->json(['message' => 'Unauthorized'], 403);
-        }
-
+        // Xóa bình luận gốc (bao gồm cả file đính kèm nếu có)
         $comment->delete();
 
-        return response()->json(['message' => 'Comment deleted successfully'], 200);
+        return response()->json(['message' => 'Bình luận đã được xóa thành công.'], 200);
     }
+
+
+
+
     public function show($id)
     {
         // Tìm bình luận theo ID, kèm thông tin task và user

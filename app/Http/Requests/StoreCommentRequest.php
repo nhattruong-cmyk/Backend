@@ -12,7 +12,7 @@ class StoreCommentRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        
+
         return true;
     }
 
@@ -26,7 +26,8 @@ class StoreCommentRequest extends FormRequest
         return [
             'task_id' => 'required|exists:tasks,id',
             'comment' => 'required|string|max:500',  // Giới hạn độ dài bình luận
-            'parent_id' => 'nullable|exists:comments,id',  // Cho phép parent_id rỗng, nếu là phản hồi, parent_id phải tồn tại
+            'parent_id' => 'nullable|exists:comments,id',
+            'files.*' => 'nullable|file|mimes:jpg,jpeg,png,pdf,doc,docx|max:2048', // Bổ sung validate cho file
         ];
     }
     public function messages(): array
@@ -37,6 +38,8 @@ class StoreCommentRequest extends FormRequest
             'comment.required' => 'Vui lòng nhập nội dung bình luận.',
             'comment.max' => 'Bình luận không được vượt quá 500 ký tự.',
             'parent_id.exists' => 'Bình luận cha không tồn tại.',
+            'files.*.mimes' => 'File phải là jpg, jpeg, png, pdf, doc hoặc docx.',
+            'files.*.max' => 'Dung lượng file tối đa là 2MB.',
         ];
     }
     protected function failedValidation(Validator $validator)

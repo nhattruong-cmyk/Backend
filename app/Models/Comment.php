@@ -21,7 +21,11 @@ class Comment extends Model
     {
         return $this->belongsTo(User::class);
     }
-
+    // Quan hệ với file
+    public function files()
+    {
+        return $this->hasMany(File::class);
+    }
     // Một bình luận có thể có nhiều phản hồi (comments con)
     public function replies()
     {
