@@ -12,6 +12,7 @@ use App\Http\Controllers\TaskController;
 use App\Http\Controllers\AssignmentController;
 use App\Http\Controllers\FileController;
 use App\Http\Controllers\CommentController;
+use App\Http\Controllers\WorktimesController;
 use App\Http\Controllers\ActivityLogController;
 
 
@@ -112,9 +113,20 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/tasks/{taskId}/comments', [CommentController::class, 'getCommentsByTask']); // Lấy bình luận của task
 
 
+    // WorkTimes
+    Route::get('/worktimes', [WorktimesController::class, 'index']);
+    Route::get('/worktimes/{id}', [WorktimesController::class, 'show']);
+    Route::post('/worktimes', [WorktimesController::class, 'store']);
+    Route::put('/worktimes/{id}', [WorktimesController::class, 'update']);
+    Route::delete('/worktimes/{id}', [WorktimesController::class, 'destroy']);
+    // Khôi phục một Worktime đã bị xóa mềm
+    Route::patch('/worktimes/{id}/restore', [WorktimesController::class, 'restore']);
+    // Xóa vĩnh viễn một Worktime đã bị xóa mềm
+    Route::delete('/worktimes/{id}/force', [WorktimesController::class, 'forceDestroy']);
+
+
     // Route lấy tất cả lịch sử
     Route::get('/activity-logs', [ActivityLogController::class, 'index']);
-
     // Route lấy lịch sử của một user cụ thể
     Route::get('/activity-logs/user/{userId}', [ActivityLogController::class, 'getUserLogs']);
 });
