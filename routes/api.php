@@ -119,6 +119,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/worktimes', [WorktimesController::class, 'store']);
     Route::put('/worktimes/{id}', [WorktimesController::class, 'update']);
     Route::delete('/worktimes/{id}', [WorktimesController::class, 'destroy']);
+    Route::get('/worktimes/trashed', [WorktimesController::class, 'getTrashed']);
     // Khôi phục một Worktime đã bị xóa mềm
     Route::patch('/worktimes/{id}/restore', [WorktimesController::class, 'restore']);
     // Xóa vĩnh viễn một Worktime đã bị xóa mềm

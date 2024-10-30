@@ -10,5 +10,5 @@ class Worktimes extends Model
 {
     use HasFactory;
     use SoftDeletes;
-    protected $fillable = ['name', 'start_date', 'end_date', 'description', 'delete_at'];
+    protected $fillable = ['name', 'start_date', 'end_date', 'description'];
 }

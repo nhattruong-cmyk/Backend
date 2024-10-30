@@ -66,17 +66,30 @@ class UserController extends Controller
         try {
             // Lấy dữ liệu đã xác thực từ StoreUserRequest
             $validatedData = $request->validated();
-
-            // Tạo user mới
+    
+            // Kiểm tra và xử lý tệp avatar nếu có
+            $avatarPath = null;
+            if ($request->hasFile('avatar')) {
+                $avatarFile = $request->file('avatar');
+    
+                // Đặt tên tệp avatar duy nhất với thời gian hiện tại và tên gốc
+                $avatarFileName = time() . '_' . $avatarFile->getClientOriginalName();
+    
+                // Lưu tệp vào thư mục public/avatar
+                $avatarPath = $avatarFile->storeAs('avatar', $avatarFileName, 'public');
+            }
+    
+            // Tạo user mới với avatar path (nếu có)
             $user = User::create([
-                'name' => $validatedData['name'],
+                'fullname' => $validatedData['fullname'],
                 'email' => $validatedData['email'],
                 'password' => bcrypt($validatedData['password']), // Mã hóa mật khẩu
+                'avatar' => $avatarPath, // Lưu đường dẫn avatar
             ]);
-
+    
             // Kiểm tra nếu có user đăng nhập
             $currentUserId = Auth::check() ? Auth::user()->id : null;
-
+    
             // Ghi lại lịch sử hoạt động sau khi tạo user thành công
             ActivityLog::create([
                 'user_id' => $currentUserId, // Người dùng thực hiện thao tác (nếu có auth)
@@ -85,7 +98,7 @@ class UserController extends Controller
                 'action' => 'created', // Hành động được thực hiện (tạo user)
                 'changes' => json_encode($request->except('password')), // Lưu lại dữ liệu đã gửi (không lưu password)
             ]);
-
+    
             // Trả về phản hồi thành công
             return response()->json(['message' => 'User created successfully', 'user' => $user], 201);
         } catch (\Exception $e) {

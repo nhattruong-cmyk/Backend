@@ -27,6 +27,8 @@ class StoreAssignmentRequest extends FormRequest
             'user_ids' => 'required|array',
             'user_ids.*' => 'integer|exists:users,id',
             'department_id' => 'required|exists:departments,id',
+            'status' => 'required|integer|in:1,2,3,4',
+            'note' => 'nullable|string',
         ];
     }
 
@@ -43,6 +45,7 @@ class StoreAssignmentRequest extends FormRequest
             'user_ids.*.exists' => 'One or more user IDs do not exist.',
             'department_id.required' => 'The department ID is required.',
             'department_id.exists' => 'The selected department does not exist.',
+            'status.in' => 'Trạng thái phải là một trong các giá trị: 1,2,3,4',
         ];
     }
 

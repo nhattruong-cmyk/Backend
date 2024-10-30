@@ -3,7 +3,8 @@
 namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
-
+use Illuminate\Contracts\Validation\Validator;
+use Illuminate\Http\Exceptions\HttpResponseException;
 class UpdateUserRequest extends FormRequest
 {
     /**
@@ -22,21 +23,33 @@ class UpdateUserRequest extends FormRequest
     public function rules()
     {
         return [
-            'name' => 'sometimes|string|max:255',
+            'fullname' => 'sometimes|string|max:255', // Thay đổi `name` thành `fullname`
             'email' => 'sometimes|string|email|max:255|unique:users,email,' . $this->user, // Kiểm tra email không trùng
-            'password' => 'sometimes|string|min:6|confirmed', // Mật khẩu có thể tùy chọn và phải đủ 6 ký tự
+            'password' => 'sometimes|string|min:6|confirmed', // Mật khẩu tùy chọn và phải đủ 6 ký tự
+            'avatar' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048', // Thêm quy tắc cho ảnh đại diện
         ];
     }
 
     public function messages()
     {
         return [
-            'name.string' => 'Tên người dùng phải là chuỗi.',
-            'name.max' => 'Tên không được vượt quá 255 ký tự.',
+            'fullname.string' => 'Tên đầy đủ phải là chuỗi ký tự.',
+            'fullname.max' => 'Tên đầy đủ không được vượt quá 255 ký tự.',
             'email.email' => 'Định dạng email không hợp lệ.',
             'email.unique' => 'Email đã tồn tại trong hệ thống.',
             'password.min' => 'Mật khẩu phải ít nhất 6 ký tự.',
             'password.confirmed' => 'Xác nhận mật khẩu không khớp.',
+            'avatar.image' => 'Avatar phải là một tệp hình ảnh.',
+            'avatar.mimes' => 'Avatar phải là tệp có định dạng jpeg, png, jpg, hoặc gif.',
+            'avatar.max' => 'Avatar không được lớn hơn 2MB.',
         ];
+    }
+
+    protected function failedValidation(Validator $validator)
+    {
+        throw new HttpResponseException(response()->json([
+            'message' => 'Validation failed',
+            'errors' => $validator->errors(),
+        ], 422));
     }
 }

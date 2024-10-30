@@ -126,7 +126,6 @@ class WorktimesController extends Controller
         }
     }
 
-
     public function forceDestroy($id)
     {
         try {

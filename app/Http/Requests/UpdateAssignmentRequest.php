@@ -26,6 +26,7 @@ class UpdateAssignmentRequest extends FormRequest
             'status' => 'sometimes|integer|in:1,2,3,4',
             'user_id' => 'sometimes|exists:users,id',
             'department_id' => 'sometimes|exists:departments,id',
+            'note' => 'nullable|string',
         ];
     }
 

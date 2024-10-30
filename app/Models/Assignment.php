@@ -14,6 +14,7 @@ class Assignment extends Model
         'task_id',
         'user_id',
         'department_id',
+        'note',
         'status',
     ];
     use SoftDeletes;
