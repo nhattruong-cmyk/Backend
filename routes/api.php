@@ -36,8 +36,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('users', [UserController::class, 'store']);
     Route::put('/users/{id}', [UserController::class, 'update']);
     Route::delete('/users/{id}', [UserController::class, 'destroy'])->name('destroy');
-    Route::patch('/users/{id}/restore', [UserController::class, 'restore'])->name('restore');
-    Route::get('/users/trashed', [UserController::class, 'getTrashedUsers'])->name('trashed');
+    Route::delete('/users/{id}/force', [UserController::class, 'forceDestroy'])->name('forceDestroy');
+    Route::post('/users/{id}/restore', [UserController::class, 'restore'])->name('restore');
+    Route::get('users-trashed', [UserController::class, 'trashedUsers'])->name('trashedUsers');
+    Route::post('/users/{id}/update-avatar', [UserController::class, 'updateAvatar']);
+
 
 
     //department

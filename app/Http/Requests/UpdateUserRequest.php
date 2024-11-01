@@ -23,12 +23,14 @@ class UpdateUserRequest extends FormRequest
     public function rules()
     {
         return [
-            'fullname' => 'sometimes|string|max:255', // Thay đổi `name` thành `fullname`
-            'email' => 'sometimes|string|email|max:255|unique:users,email,' . $this->user, // Kiểm tra email không trùng
-            'password' => 'sometimes|string|min:6|confirmed', // Mật khẩu tùy chọn và phải đủ 6 ký tự
-            'avatar' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048', // Thêm quy tắc cho ảnh đại diện
+            'fullname' => 'sometimes|string|max:255',
+            'email' => 'sometimes|string|email|max:255|unique:users,email,' . $this->route('id'),
+            'password' => 'sometimes|string|min:6|confirmed',
+            'avatar' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048', // Vẫn cho phép cập nhật avatar
+            'role_id' => 'sometimes|integer|exists:roles,id',
         ];
     }
+    
 
     public function messages()
     {
@@ -42,8 +44,11 @@ class UpdateUserRequest extends FormRequest
             'avatar.image' => 'Avatar phải là một tệp hình ảnh.',
             'avatar.mimes' => 'Avatar phải là tệp có định dạng jpeg, png, jpg, hoặc gif.',
             'avatar.max' => 'Avatar không được lớn hơn 2MB.',
+            'role_id.integer' => 'phân quyền không hợp lệ.',
+            'role_id.exists' => 'phân quyền không tồn tại.',
         ];
     }
+    
 
     protected function failedValidation(Validator $validator)
     {

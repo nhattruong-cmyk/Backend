@@ -4,11 +4,15 @@ namespace App\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Models\Project;
+use App\Models\Department;
 use App\Models\ActivityLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use App\Http\Requests\StoreUserRequest;
 use App\Http\Requests\UpdateUserRequest;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 
 
 class UserController extends Controller
@@ -66,19 +70,19 @@ class UserController extends Controller
         try {
             // Lấy dữ liệu đã xác thực từ StoreUserRequest
             $validatedData = $request->validated();
-    
+
             // Kiểm tra và xử lý tệp avatar nếu có
             $avatarPath = null;
             if ($request->hasFile('avatar')) {
                 $avatarFile = $request->file('avatar');
-    
+
                 // Đặt tên tệp avatar duy nhất với thời gian hiện tại và tên gốc
                 $avatarFileName = time() . '_' . $avatarFile->getClientOriginalName();
-    
+
                 // Lưu tệp vào thư mục public/avatar
                 $avatarPath = $avatarFile->storeAs('avatar', $avatarFileName, 'public');
             }
-    
+
             // Tạo user mới với avatar path (nếu có)
             $user = User::create([
                 'fullname' => $validatedData['fullname'],
@@ -86,10 +90,10 @@ class UserController extends Controller
                 'password' => bcrypt($validatedData['password']), // Mã hóa mật khẩu
                 'avatar' => $avatarPath, // Lưu đường dẫn avatar
             ]);
-    
+
             // Kiểm tra nếu có user đăng nhập
             $currentUserId = Auth::check() ? Auth::user()->id : null;
-    
+
             // Ghi lại lịch sử hoạt động sau khi tạo user thành công
             ActivityLog::create([
                 'user_id' => $currentUserId, // Người dùng thực hiện thao tác (nếu có auth)
@@ -98,7 +102,7 @@ class UserController extends Controller
                 'action' => 'created', // Hành động được thực hiện (tạo user)
                 'changes' => json_encode($request->except('password')), // Lưu lại dữ liệu đã gửi (không lưu password)
             ]);
-    
+
             // Trả về phản hồi thành công
             return response()->json(['message' => 'User created successfully', 'user' => $user], 201);
         } catch (\Exception $e) {
@@ -107,83 +111,143 @@ class UserController extends Controller
         }
     }
 
-
     // Cập nhật thông tin người dùng
     public function update(UpdateUserRequest $request, $id)
     {
-        $user = $request->user(); // Người đang thực hiện cập nhật
+        $user = $request->user(); // Người thực hiện cập nhật
         $requestedUser = User::find($id); // Người dùng được cập nhật
 
         if (!$requestedUser) {
             return response()->json(['message' => 'User not found'], 404);
         }
 
-        // Admin có thể sửa thông tin của tất cả mọi người
-        if ($user->role_id == 1) {
-            $requestedUser->update($request->validated());
+        // Chuẩn bị mảng dữ liệu cập nhật
+        $updatedData = $request->validated();
 
-            // Ghi lại lịch sử hoạt động sau khi cập nhật user thành công
+        // Bỏ qua bất kỳ thay đổi nào liên quan đến avatar
+        unset($updatedData['avatar']); // Không cập nhật avatar
+
+        // Logic cập nhật thông tin người dùng và kiểm tra quyền hạn
+        try {
+            // Admin có thể sửa thông tin của tất cả mọi người
+            if ($user->role_id == 1) {
+                $requestedUser->update($updatedData);
+            }
+
+            // Manager có thể sửa thông tin của tất cả Staff hoặc chính mình
+            if ($user->role_id == 2) {
+                if ($requestedUser->role_id == 3 || $user->id == $requestedUser->id) {
+                    $requestedUser->update($updatedData);
+                }
+            }
+
+            // Staff chỉ được sửa thông tin của chính mình
+            if ($user->role_id == 3 && $user->id == $requestedUser->id) {
+                $requestedUser->update($updatedData);
+            }
+
+            // Ghi lại hoạt động vào ActivityLog
             ActivityLog::create([
                 'user_id' => $user->id, // Người thực hiện
                 'loggable_id' => $requestedUser->id, // Người dùng được cập nhật
                 'loggable_type' => 'App\Models\User',
                 'action' => 'updated',
-                'changes' => json_encode($request->validated()), // Lưu lại các thay đổi
+                'changes' => json_encode($updatedData), // Lưu lại các thay đổi
             ]);
 
             return response()->json(['message' => 'User updated successfully', 'user' => $requestedUser]);
+        } catch (\Exception $e) {
+            Log::error('Failed to update user: ' . $e->getMessage());
+            return response()->json(['error' => 'Failed to update user: ' . $e->getMessage()], 500);
+        }
+    }
+
+    public function updateAvatar(Request $request, $id)
+    {
+        // Tìm người dùng theo ID
+        $user = User::find($id);
+
+        if (!$user) {
+            return response()->json(['message' => 'User not found'], 404);
         }
 
-        // Manager có thể sửa thông tin của tất cả Staff hoặc chính mình
-        if ($user->role_id == 2) {
-            if ($requestedUser->role_id == 3 || $user->id == $requestedUser->id) {
-                $requestedUser->update($request->validated());
+        // Kiểm tra xem có file ảnh không
+        if ($request->hasFile('avatar')) {
+            try {
+                // Xóa ảnh cũ nếu đã có
+                if ($user->avatar) {
+                    // Xóa ảnh cũ từ storage
+                    Storage::disk('public')->delete($user->avatar);
+                    Log::info('Old avatar deleted:', ['avatar' => $user->avatar]); // Log thông tin ảnh cũ đã xóa
+                }
 
-                ActivityLog::create([
-                    'user_id' => $user->id,
-                    'loggable_id' => $requestedUser->id,
-                    'loggable_type' => 'App\Models\User',
-                    'action' => 'updated',
-                    'changes' => json_encode($request->validated()),
-                ]);
+                // Lưu avatar mới vào thư mục public/avatar
+                $avatarFile = $request->file('avatar');
+                $avatarFileName = time() . '_' . $avatarFile->getClientOriginalName();
+                $avatarPath = $avatarFile->storeAs('avatar', $avatarFileName, 'public');
 
-                return response()->json(['message' => 'User updated successfully', 'user' => $requestedUser]);
+                // Cập nhật đường dẫn mới vào cơ sở dữ liệu
+                $user->avatar = $avatarPath;
+                $user->save();
+
+                Log::info('New avatar path saved:', ['avatar' => $avatarPath]); // Log thông tin ảnh mới
+
+                return response()->json(['message' => 'Avatar updated successfully', 'avatar' => $avatarPath]);
+            } catch (\Exception $e) {
+                Log::error('Failed to update avatar: ' . $e->getMessage());
+                return response()->json(['error' => 'Failed to update avatar: ' . $e->getMessage()], 500);
             }
         }
 
-        // Staff chỉ được sửa thông tin của chính mình
-        if ($user->role_id == 3 && $user->id == $requestedUser->id) {
-            $requestedUser->update($request->validated());
-
-            ActivityLog::create([
-                'user_id' => $user->id,
-                'loggable_id' => $requestedUser->id,
-                'loggable_type' => 'App\Models\User',
-                'action' => 'updated',
-                'changes' => json_encode($request->validated()),
-            ]);
-
-            return response()->json(['message' => 'User updated successfully', 'user' => $requestedUser]);
-        }
-
-        return response()->json(['message' => 'Unauthorized'], 403);
+        return response()->json(['message' => 'No avatar file provided'], 400);
     }
-
 
     // Xóa người dùng
     public function destroy(Request $request, $id)
     {
         $user = $request->user();
         $requestedUser = User::find($id);
-
+    
         if (!$requestedUser) {
             return response()->json(['message' => 'User not found'], 404);
         }
-
+    
+        // Danh sách các liên kết ngoại
+        $relatedData = [];
+    
+        // Kiểm tra xem user có liên kết với các dự án không
+        $relatedProjects = Project::where('user_id', $id)->pluck('id')->toArray();
+        if (!empty($relatedProjects)) {
+            $relatedData['projects'] = $relatedProjects;
+        }
+    
+        // Kiểm tra các công việc liên kết với user (nếu có)
+        $relatedTasks = $requestedUser->tasks()->pluck('tasks.id')->toArray();
+        if (!empty($relatedTasks)) {
+            $relatedData['tasks'] = $relatedTasks;
+        }
+    
+        // Kiểm tra liên kết với phòng ban (departments)
+        $relatedDepartments = Department::whereHas('users', function($query) use ($id) {
+            $query->where('users.id', $id);
+        })->pluck('department_name', 'id')->toArray();
+    
+        if (!empty($relatedDepartments)) {
+            $relatedData['departments'] = $relatedDepartments;
+        }
+    
+        // Nếu có dữ liệu liên quan, trả về thông báo lỗi
+        if (!empty($relatedData)) {
+            return response()->json([
+                'message' => 'Cannot delete user because of existing related data.',
+                'related_data' => $relatedData
+            ], 400);
+        }
+    
         // Chỉ Admin có thể xóa người dùng
         if ($user->role_id == 1) {
             $requestedUser->delete(); // Xóa mềm người dùng
-
+    
             // Ghi lại lịch sử hoạt động sau khi xóa mềm user thành công
             ActivityLog::create([
                 'user_id' => $user->id, // Người thực hiện thao tác
@@ -192,13 +256,72 @@ class UserController extends Controller
                 'action' => 'deleted',
                 'changes' => json_encode($requestedUser->toArray()), // Lưu lại thông tin trước khi xóa
             ]);
-
+    
             return response()->json(['message' => 'User soft deleted successfully']);
         }
-
+    
         return response()->json(['message' => 'Unauthorized'], 403);
     }
-
+    
+    public function forceDestroy(Request $request, $id)
+    {
+        $requestedUser = User::withTrashed()->find($id);
+    
+        if (!$requestedUser) {
+            return response()->json(['message' => 'User not found'], 404);
+        }
+    
+        // Danh sách các liên kết ngoại
+        $relatedData = [];
+    
+        // Kiểm tra xem user có liên kết với các dự án không
+        $relatedProjects = Project::where('user_id', $id)->pluck('id')->toArray();
+        if (!empty($relatedProjects)) {
+            $relatedData['projects'] = $relatedProjects;
+        }
+    
+        // Kiểm tra các công việc liên kết với user (nếu có)
+        $relatedTasks = $requestedUser->tasks()->withTrashed()->pluck('tasks.id')->toArray();
+        if (!empty($relatedTasks)) {
+            $relatedData['tasks'] = $relatedTasks;
+        }
+    
+        // Kiểm tra liên kết với phòng ban (departments)
+        $relatedDepartments = Department::whereHas('users', function($query) use ($id) {
+            $query->where('users.id', $id);
+        })->pluck('department_name', 'id')->toArray();
+    
+        if (!empty($relatedDepartments)) {
+            $relatedData['departments'] = $relatedDepartments;
+        }
+    
+        // Nếu có dữ liệu liên quan, trả về thông báo lỗi
+        if (!empty($relatedData)) {
+            return response()->json([
+                'message' => 'Cannot delete user because of existing related data.',
+                'related_data' => $relatedData
+            ], 400);
+        }
+    
+        // Thực hiện xóa vĩnh viễn nếu không có liên kết
+        try {
+            $requestedUser->forceDelete();
+    
+            ActivityLog::create([
+                'user_id' => $request->user()->id,
+                'loggable_id' => $requestedUser->id,
+                'loggable_type' => 'App\Models\User',
+                'action' => 'force_deleted',
+                'changes' => json_encode($requestedUser->toArray()),
+            ]);
+    
+            return response()->json(['message' => 'User permanently deleted']);
+        } catch (\Exception $e) {
+            Log::error('Failed to force delete user: ' . $e->getMessage());
+            return response()->json(['error' => 'Failed to delete user: ' . $e->getMessage()], 500);
+        }
+    }
+    
     public function restore($id)
     {
         $requestedUser = User::withTrashed()->find($id);
@@ -213,9 +336,11 @@ class UserController extends Controller
         return response()->json(['message' => 'User restored successfully']);
     }
 
-    public function getTrashedUsers()
+    public function trashedUsers()
     {
-        $trashedUsers = User::onlyTrashed()->get();
+        $trashedUsers= User::onlyTrashed()->get();
         return response()->json($trashedUsers);
     }
+    
+    
 }
