@@ -15,7 +15,7 @@ class CommentController extends Controller
     public function index()
     {
         // Lấy tất cả các bình luận, kèm theo thông tin task và user
-        $comments = Comment::with(['task', 'user', 'replies'])->get();
+        $comments = Comment::with(['task', 'user', 'replies', 'files'])->get();
 
         return response()->json($comments, 200);
     }
@@ -181,7 +181,7 @@ class CommentController extends Controller
     public function show($id)
     {
         // Tìm bình luận theo ID, kèm thông tin task và user
-        $comment = Comment::with(['task', 'user', 'replies'])->find($id);
+        $comment = Comment::with(['task', 'user', 'replies', 'files'])->find($id);
 
         if (!$comment) {
             return response()->json(['message' => 'Comment not found'], 404);

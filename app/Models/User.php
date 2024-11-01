@@ -52,9 +52,17 @@ class User extends Authenticatable
     }
     public function role()
     {
-        return $this->belongsTo(Role::class);
+        return $this->belongsTo(Role::class, 'role_id');
     }
-
+    public function hasRole($role)
+    {
+        return $this->role && $this->role->name === $role; // Kiểm tra vai trò
+    }
+    // Hàm kiểm tra quyền của người dùng
+    public function hasPermission($permissionName)
+    {
+        return $this->role && $this->role->permissions->contains('name', $permissionName);
+    }
     // Quan hệ nhiều-nhiều với Department
     public function departments()
     {

@@ -24,23 +24,23 @@ class UpdateRoleRequest extends FormRequest
      */
     public function rules(): array
     {
-        $roleId = $this->route('id'); // Lấy ID từ route {id}
 
         return [
-            'name' => [
-                'sometimes',  // Chỉ kiểm tra khi có dữ liệu
-                'string',
-                Rule::unique('roles', 'name')->ignore($roleId), // Kiểm tra unique nhưng bỏ qua role hiện tại
-            ],
-            'description' => 'nullable|string',
+            'name' => 'sometimes|required|unique:roles,name,',
+            'description' => 'nullable',
+            'permissions' => 'array', // permissions là một mảng chứa ID của các quyền
+            'permissions.*' => 'integer|exists:permissions,id',
         ];
     }
     public function messages(): array
     {
         return [
-            'name.required' => 'Bạn phải nhập tên vai trò.',
-            'name.unique' => 'Tên vai trò này đã tồn tại, vui lòng nhập tên khác.',
-            'description.nullable' => 'Mô tả không bắt buộc phải nhập.',
+            'name.required' => 'Tên vai trò là bắt buộc.',
+            'name.unique' => 'Tên vai trò đã tồn tại, vui lòng chọn tên khác.',
+            'description.nullable' => 'Mô tả có thể để trống.',
+            'permissions.array' => 'Quyền phải là một mảng.',
+            'permissions.*.integer' => 'Mỗi phần tử trong quyền phải là một số nguyên.',
+            'permissions.*.exists' => 'Một trong các quyền không tồn tại.',
         ];
     }
     protected function failedValidation(Validator $validator)

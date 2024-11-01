@@ -14,6 +14,7 @@ use App\Http\Controllers\FileController;
 use App\Http\Controllers\CommentController;
 use App\Http\Controllers\WorktimesController;
 use App\Http\Controllers\ActivityLogController;
+use App\Http\Controllers\PermissionController;
 
 
 
@@ -29,6 +30,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('roles', [RoleController::class, 'store']);
     Route::put('/roles/{id}', [RoleController::class, 'update']);
     Route::delete('/roles/{id}', [RoleController::class, 'destroy']);
+    Route::delete('/roles/{id}/permissions', [RoleController::class, 'deletePermission']);
 
     //user
     Route::get('/users', [UserController::class, 'index']);
@@ -40,6 +42,17 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/users/{id}/restore', [UserController::class, 'restore'])->name('restore');
     Route::get('users-trashed', [UserController::class, 'trashedUsers'])->name('trashedUsers');
     Route::post('/users/{id}/update-avatar', [UserController::class, 'updateAvatar']);
+  
+    //permission
+    Route::get('/permissions', [PermissionController::class, 'index']);
+    Route::get('/permissions/{id}', [PermissionController::class, 'show']);
+    Route::post('/permissions', [PermissionController::class, 'store']);
+    Route::delete('/permissions/{id}', [PermissionController::class, 'destroy']);
+    Route::put('/permissions/{id}', [PermissionController::class, 'update']);
+
+    Route::post('/permissions/{id}/restore', [PermissionController::class, 'restore']);
+    Route::delete('/permissions/{id}/force-delete', [PermissionController::class, 'forceDelete']);
+    Route::get('/permissions-trashed', [PermissionController::class, 'trashed']);
 
 
 

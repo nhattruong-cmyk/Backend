@@ -22,18 +22,22 @@ class UserController extends Controller
     {
         $user = $request->user();
 
-        if ($user->role_id == 1) { // Admin
+        if ($user->hasRole('Admin')) {
             // Trả về tất cả người dùng nếu là admin
             $users = User::all();
-            return response()->json($users);
-        } elseif ($user->role_id == 2) { // Manager
-            // Trả về tất cả nhân viên (role_id = 3) nếu là manager
-            $users = User::where('role_id', 3)->get();
-            return response()->json($users);
+        } elseif ($user->hasRole('Manager')) {
+            // Trả về tất cả staff và chính manager
+            $users = User::whereHas('role', function ($query) {
+                $query->where('name', 'Staff');
+            })->orWhere('id', $user->id)->get();
+        } elseif ($user->hasRole('Staff')) {
+            // Nếu là staff thì chỉ trả về chính người đó
+            $users = User::where('id', $user->id)->get();
         } else {
-            // Nếu là Staff thì không được phép xem danh sách người dùng khác
             return response()->json(['message' => 'Unauthorized'], 403);
         }
+
+        return response()->json($users);
     }
     // Lấy thông tin chi tiết của một người dùng
     public function show(Request $request, $id)
@@ -46,19 +50,18 @@ class UserController extends Controller
         }
 
         // Admin có thể xem thông tin của tất cả mọi người
-        if ($user->role_id == 1) {
+        if ($user->hasRole('Admin')) {
             return response()->json($requestedUser);
         }
 
         // Manager có thể xem thông tin của staff hoặc chính mình
-        if ($user->role_id == 2) {
-            if ($requestedUser->role_id == 3 || $user->id == $requestedUser->id) {
-                return response()->json($requestedUser);
-            }
+
+        if ($user->hasRole('Manager') && ($requestedUser->hasRole('Staff') || $user->id == $requestedUser->id)) {
+            return response()->json($requestedUser);
         }
 
         // Staff chỉ được xem thông tin của chính mình
-        if ($user->role_id == 3 && $user->id == $requestedUser->id) {
+        if ($user->hasRole('Staff') && $user->id == $requestedUser->id) {
             return response()->json($requestedUser);
         }
 
@@ -114,52 +117,52 @@ class UserController extends Controller
     // Cập nhật thông tin người dùng
     public function update(UpdateUserRequest $request, $id)
     {
-        $user = $request->user(); // Người thực hiện cập nhật
+        $user = $request->user(); // Người đang thực hiện cập nhật
         $requestedUser = User::find($id); // Người dùng được cập nhật
 
         if (!$requestedUser) {
             return response()->json(['message' => 'User not found'], 404);
         }
 
-        // Chuẩn bị mảng dữ liệu cập nhật
+        // Lấy dữ liệu đã xác thực từ request
         $updatedData = $request->validated();
 
         // Bỏ qua bất kỳ thay đổi nào liên quan đến avatar
         unset($updatedData['avatar']); // Không cập nhật avatar
 
-        // Logic cập nhật thông tin người dùng và kiểm tra quyền hạn
-        try {
-            // Admin có thể sửa thông tin của tất cả mọi người
-            if ($user->role_id == 1) {
-                $requestedUser->update($updatedData);
-            }
-
-            // Manager có thể sửa thông tin của tất cả Staff hoặc chính mình
-            if ($user->role_id == 2) {
-                if ($requestedUser->role_id == 3 || $user->id == $requestedUser->id) {
-                    $requestedUser->update($updatedData);
+        // Kiểm tra quyền hạn người dùng và chỉ cho phép cập nhật nếu đúng điều kiện
+        if ($user->hasRole('Admin')) {
+            // Nếu là Admin, có quyền cập nhật mọi thông tin, bao gồm cả role
+            $requestedUser->update($updatedData);
+        } elseif ($user->hasRole('Manager')) {
+            // Manager chỉ được phép chỉnh sửa thông tin của Staff và chính mình, nhưng không được thay đổi role thành Admin
+            if ($requestedUser->hasRole('Staff') || $user->id == $requestedUser->id) {
+                // Nếu có `role_id` trong yêu cầu và nó không phải `Admin` (role_id = 1)
+                if (isset($updatedData['role_id']) && $updatedData['role_id'] == 1) {
+                    return response()->json(['message' => 'Unauthorized to assign Admin role'], 403);
                 }
-            }
-
-            // Staff chỉ được sửa thông tin của chính mình
-            if ($user->role_id == 3 && $user->id == $requestedUser->id) {
                 $requestedUser->update($updatedData);
+            } else {
+                return response()->json(['message' => 'Unauthorized to update this user'], 403);
             }
-
-            // Ghi lại hoạt động vào ActivityLog
-            ActivityLog::create([
-                'user_id' => $user->id, // Người thực hiện
-                'loggable_id' => $requestedUser->id, // Người dùng được cập nhật
-                'loggable_type' => 'App\Models\User',
-                'action' => 'updated',
-                'changes' => json_encode($updatedData), // Lưu lại các thay đổi
-            ]);
-
-            return response()->json(['message' => 'User updated successfully', 'user' => $requestedUser]);
-        } catch (\Exception $e) {
-            Log::error('Failed to update user: ' . $e->getMessage());
-            return response()->json(['error' => 'Failed to update user: ' . $e->getMessage()], 500);
+        } elseif ($user->hasRole('Staff') && $user->id == $requestedUser->id) {
+            // Staff chỉ được phép chỉnh sửa thông tin của chính mình
+            unset($updatedData['role_id']); // Bỏ qua mọi thay đổi liên quan đến role
+            $requestedUser->update($updatedData);
+        } else {
+            return response()->json(['message' => 'Unauthorized'], 403);
         }
+
+        // Ghi lại hoạt động vào ActivityLog sau khi cập nhật user thành công
+        ActivityLog::create([
+            'user_id' => $user->id, // Người thực hiện
+            'loggable_id' => $requestedUser->id, // Người dùng được cập nhật
+            'loggable_type' => 'App\Models\User',
+            'action' => 'updated',
+            'changes' => json_encode($updatedData), // Lưu lại các thay đổi
+        ]);
+
+        return response()->json(['message' => 'User updated successfully', 'user' => $requestedUser]);
     }
 
     public function updateAvatar(Request $request, $id)
@@ -207,35 +210,35 @@ class UserController extends Controller
     {
         $user = $request->user();
         $requestedUser = User::find($id);
-    
+
         if (!$requestedUser) {
             return response()->json(['message' => 'User not found'], 404);
         }
-    
+
         // Danh sách các liên kết ngoại
         $relatedData = [];
-    
+
         // Kiểm tra xem user có liên kết với các dự án không
         $relatedProjects = Project::where('user_id', $id)->pluck('id')->toArray();
         if (!empty($relatedProjects)) {
             $relatedData['projects'] = $relatedProjects;
         }
-    
+
         // Kiểm tra các công việc liên kết với user (nếu có)
         $relatedTasks = $requestedUser->tasks()->pluck('tasks.id')->toArray();
         if (!empty($relatedTasks)) {
             $relatedData['tasks'] = $relatedTasks;
         }
-    
+
         // Kiểm tra liên kết với phòng ban (departments)
-        $relatedDepartments = Department::whereHas('users', function($query) use ($id) {
+        $relatedDepartments = Department::whereHas('users', function ($query) use ($id) {
             $query->where('users.id', $id);
         })->pluck('department_name', 'id')->toArray();
-    
+
         if (!empty($relatedDepartments)) {
             $relatedData['departments'] = $relatedDepartments;
         }
-    
+
         // Nếu có dữ liệu liên quan, trả về thông báo lỗi
         if (!empty($relatedData)) {
             return response()->json([
@@ -243,11 +246,11 @@ class UserController extends Controller
                 'related_data' => $relatedData
             ], 400);
         }
-    
+
         // Chỉ Admin có thể xóa người dùng
         if ($user->role_id == 1) {
             $requestedUser->delete(); // Xóa mềm người dùng
-    
+
             // Ghi lại lịch sử hoạt động sau khi xóa mềm user thành công
             ActivityLog::create([
                 'user_id' => $user->id, // Người thực hiện thao tác
@@ -256,45 +259,45 @@ class UserController extends Controller
                 'action' => 'deleted',
                 'changes' => json_encode($requestedUser->toArray()), // Lưu lại thông tin trước khi xóa
             ]);
-    
+
             return response()->json(['message' => 'User soft deleted successfully']);
         }
-    
+
         return response()->json(['message' => 'Unauthorized'], 403);
     }
-    
+
     public function forceDestroy(Request $request, $id)
     {
         $requestedUser = User::withTrashed()->find($id);
-    
+
         if (!$requestedUser) {
             return response()->json(['message' => 'User not found'], 404);
         }
-    
+
         // Danh sách các liên kết ngoại
         $relatedData = [];
-    
+
         // Kiểm tra xem user có liên kết với các dự án không
         $relatedProjects = Project::where('user_id', $id)->pluck('id')->toArray();
         if (!empty($relatedProjects)) {
             $relatedData['projects'] = $relatedProjects;
         }
-    
+
         // Kiểm tra các công việc liên kết với user (nếu có)
         $relatedTasks = $requestedUser->tasks()->withTrashed()->pluck('tasks.id')->toArray();
         if (!empty($relatedTasks)) {
             $relatedData['tasks'] = $relatedTasks;
         }
-    
+
         // Kiểm tra liên kết với phòng ban (departments)
-        $relatedDepartments = Department::whereHas('users', function($query) use ($id) {
+        $relatedDepartments = Department::whereHas('users', function ($query) use ($id) {
             $query->where('users.id', $id);
         })->pluck('department_name', 'id')->toArray();
-    
+
         if (!empty($relatedDepartments)) {
             $relatedData['departments'] = $relatedDepartments;
         }
-    
+
         // Nếu có dữ liệu liên quan, trả về thông báo lỗi
         if (!empty($relatedData)) {
             return response()->json([
@@ -302,11 +305,11 @@ class UserController extends Controller
                 'related_data' => $relatedData
             ], 400);
         }
-    
+
         // Thực hiện xóa vĩnh viễn nếu không có liên kết
         try {
             $requestedUser->forceDelete();
-    
+
             ActivityLog::create([
                 'user_id' => $request->user()->id,
                 'loggable_id' => $requestedUser->id,
@@ -314,14 +317,14 @@ class UserController extends Controller
                 'action' => 'force_deleted',
                 'changes' => json_encode($requestedUser->toArray()),
             ]);
-    
+
             return response()->json(['message' => 'User permanently deleted']);
         } catch (\Exception $e) {
             Log::error('Failed to force delete user: ' . $e->getMessage());
             return response()->json(['error' => 'Failed to delete user: ' . $e->getMessage()], 500);
         }
     }
-    
+
     public function restore($id)
     {
         $requestedUser = User::withTrashed()->find($id);
@@ -338,9 +341,9 @@ class UserController extends Controller
 
     public function trashedUsers()
     {
-        $trashedUsers= User::onlyTrashed()->get();
+        $trashedUsers = User::onlyTrashed()->get();
         return response()->json($trashedUsers);
     }
-    
-    
+
+
 }

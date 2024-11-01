@@ -6,6 +6,7 @@ use App\Models\Role;
 use App\Http\Requests\StoreRoleRequest;
 use App\Http\Requests\UpdateRoleRequest;
 use Illuminate\Http\Request;
+use App\Models\Permission;
 
 class RoleController extends Controller
 {
@@ -15,11 +16,16 @@ class RoleController extends Controller
     public function index(Request $request)
     {
         $user = $request->user();
-        if ($user->role_id !== 1) {
+
+        // Kiểm tra nếu vai trò của user là Admin
+        if (!$user->hasRole('Admin')) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
-        $roles = Role::all();
+        // Lấy tất cả roles và kèm theo permissions
+        $roles = Role::with(['permissions', 'permissions.children'])->get();
+
+        // Trả về dữ liệu roles và permissions
         return response()->json($roles);
     }
 
@@ -30,7 +36,7 @@ class RoleController extends Controller
     {
         // Chỉ cho phép Admin thêm vai trò
         $user = $request->user();
-        if ($user->role_id !== 1) {
+        if (!$user->hasRole('Admin')) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
         // Nếu validation không thành công, Laravel sẽ tự động trả về lỗi.
@@ -39,7 +45,20 @@ class RoleController extends Controller
             'description' => $request->description,
         ]);
 
-        return response()->json($role, 201);
+        // Gán quyền cho vai trò nếu có
+        if ($request->has('permissions')) {
+            $role->permissions()->attach($request->permissions);
+
+            // Nếu có quyền lớn, cũng tự động gán quyền nhỏ tương ứng
+            foreach ($request->permissions as $permissionId) {
+                $permission = Permission::find($permissionId);
+                if ($permission && $permission->parent_id) {
+                    $role->permissions()->attach($permission->parent_id);
+                }
+            }
+        }
+
+        return response()->json($role->load('permissions'), 201);
     }
     /**
      * Display the specified resource.
@@ -50,12 +69,12 @@ class RoleController extends Controller
         $user = $request->user();
 
         // Kiểm tra nếu người dùng không phải là admin (role_id != 1)
-        if ($user->role_id !== 1) {
+        if (!$user->hasRole('Admin')) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
         // Tìm kiếm role theo ID
-        $role = Role::find($id);
+        $role = Role::with(['permissions', 'permissions.children'])->find($id);
 
         // Nếu role không tồn tại, trả về lỗi
         if (!$role) {
@@ -72,17 +91,41 @@ class RoleController extends Controller
     {
         // Chỉ cho phép Admin sửa vai trò
         $user = $request->user();
-        if ($user->role_id !== 1) {
+        if (!$user->hasRole('Admin')) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
+        // Tìm vai trò theo ID
         $role = Role::findOrFail($id);
-        $validatedData = $request->validated();
+
+        // Kiểm tra xem người dùng có cố gắng thêm quyền mà đã tồn tại không
+        if ($request->has('permissions')) {
+            $existingPermissions = $role->permissions()->pluck('permissions.id')->toArray(); // Sửa tại đây
+            $newPermissions = $request->permissions;
+
+            // Tìm các quyền trùng lặp
+            $duplicates = array_intersect($existingPermissions, $newPermissions);
+
+            // Nếu có quyền trùng lặp, trả về thông báo lỗi cụ thể
+            if (!empty($duplicates)) {
+                return response()->json([
+                    'message' => 'The following permissions are already associated with this role: ' . implode(', ', $duplicates)
+                ], 400);
+            }
+
+            // Thêm các quyền mới chưa tồn tại vào vai trò
+            $role->permissions()->attach(array_diff($newPermissions, $existingPermissions));
+        }
 
         // Cập nhật thông tin vai trò
-        $role->update($validatedData);
+        $role->update($request->validated());
 
-        return response()->json($role);
+        // Kiểm tra xem người dùng có cố gắng đổi tên vai trò "Admin" hay không
+        if ($request->has('name') && strtolower($request->name) === 'admin' && strtolower($role->name) !== 'admin') {
+            return response()->json(['message' => 'You cannot change the role name to "Admin".'], 403);
+        }
+
+        return response()->json($role->load('permissions')); // Trả về thông tin vai trò cùng quyền đã gán
     }
 
     /**
@@ -92,7 +135,7 @@ class RoleController extends Controller
     {
         // Chỉ cho phép Admin xóa vai trò
         $user = $request->user();
-        if ($user->role_id !== 1) {
+        if (!$user->hasRole('Admin')) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
@@ -103,6 +146,11 @@ class RoleController extends Controller
         }
 
         try {
+            // Kiểm tra có liên kết với permission hay không trước khi xóa
+            if ($role->permissions()->exists()) {
+                return response()->json(['error' => 'Role cannot be deleted because it is associated with permissions.'], 400);
+            }
+
             $role->delete();
             return response()->json(['message' => 'Role deleted successfully']);
         } catch (\Illuminate\Database\QueryException $e) {
@@ -117,4 +165,31 @@ class RoleController extends Controller
             ], 500);
         }
     }
+    public function deletePermission(Request $request, $id)
+    {
+        // Chỉ cho phép Admin xóa quyền khỏi vai trò
+        $user = $request->user();
+        if (!$user->hasRole('Admin')) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        // Tìm vai trò theo ID
+        $role = Role::findOrFail($id);
+
+        // Kiểm tra xem `permissions` có được gửi trong request không
+        if (!$request->has('permissions') || !is_array($request->permissions)) {
+            return response()->json(['message' => 'No permissions specified'], 400);
+        }
+
+        $permissionsToRemove = $request->permissions;
+
+        // Loại bỏ các quyền khỏi vai trò
+        $role->permissions()->detach($permissionsToRemove);
+
+        return response()->json([
+            'message' => 'Permissions removed successfully',
+            'permissions' => $role->permissions // Trả về danh sách quyền còn lại
+        ]);
+    }
+    
 }

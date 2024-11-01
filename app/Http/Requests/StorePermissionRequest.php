@@ -5,7 +5,8 @@ namespace App\Http\Requests;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Http\Exceptions\HttpResponseException;
-class StoreRoleRequest extends FormRequest
+
+class StorePermissionRequest extends FormRequest
 {
     /**
      * Determine if the user is authorized to make this request.
@@ -25,27 +26,24 @@ class StoreRoleRequest extends FormRequest
         return [
             'name' => 'required|unique:roles,name',
             'description' => 'nullable',
-            'permissions' => 'array',// permissions là mảng chứa id của các quyền
+            'permissions' => 'array', // permissions là một mảng chứa ID của các quyền
             'permissions.*' => 'integer|exists:permissions,id', // Mỗi phần tử phải là ID hợp lệ của Permission
+            'parent_id' => 'nullable|exists:permissions,id', // Kiểm tra nếu parent_id tồn tại trong bảng permissions
 
         ];
     }
     public function messages(): array
     {
         return [
-            'name.required' => 'Tên vai trò là bắt buộc.',
-            'name.unique' => 'Tên vai trò đã tồn tại, vui lòng chọn tên khác.',
-            'description.nullable' => 'Mô tả có thể để trống.',
-            'permissions.array' => 'Quyền phải là một mảng.',
-            'permissions.*.integer' => 'Mỗi phần tử trong quyền phải là một số nguyên.',
-            'permissions.*.exists' => 'Một trong các quyền không tồn tại.',
+            'name.required' => 'Tên quyền là bắt buộc.',
+            'name.unique' => 'Tên quyền đã tồn tại, vui lòng chọn tên khác.',
         ];
     }
     protected function failedValidation(Validator $validator)
     {
         throw new HttpResponseException(response()->json([
             'message' => 'Validation failed',
-            'errors' => $validator->errors()
+            'errors' => $validator->errors(),
         ], 422));
     }
 }

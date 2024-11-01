@@ -160,7 +160,7 @@ class FileController extends Controller
         $file = File::findOrFail($id);
 
         // Kiểm tra quyền xóa
-        if (Auth::user()->id !== $file->uploaded_by && Auth::user()->role !== 'admin') {
+        if (Auth::user()->id !== $file->uploaded_by && Auth::user()->role_id !== 1) {
             return response()->json(['error' => 'You do not have permission to delete this file.'], 403);
         }
 
@@ -186,6 +186,7 @@ class FileController extends Controller
     {
         // Lấy danh sách file đã bị soft delete
         $trashedFiles = File::onlyTrashed()->get();
+        Log::info('Trashed files:', ['files' => $trashedFiles]);
 
         return response()->json($trashedFiles, 200);
     }
