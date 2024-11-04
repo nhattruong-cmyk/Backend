@@ -54,8 +54,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/permissions/{id}/force-delete', [PermissionController::class, 'forceDelete']);
     Route::get('/permissions-trashed', [PermissionController::class, 'trashed']);
 
-
-
     //department
     Route::get('departments', [DepartmentController::class, 'index']);
     Route::get('departments/{id}', [DepartmentController::class, 'show']);
@@ -122,7 +120,6 @@ Route::middleware('auth:sanctum')->group(function () {
     //Route cho Comment
     Route::get('/comments', [CommentController::class, 'index']);
     Route::get('/comments/{id}', [CommentController::class, 'show']);
-
     Route::post('/comments', [CommentController::class, 'store']); // Tạo bình luận
     Route::put('/comments/{id}', [CommentController::class, 'update']); // Cập nhật bình luận
     Route::delete('/comments/{id}', [CommentController::class, 'destroy']); // Xóa bình luận
@@ -135,10 +132,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/worktimes', [WorktimesController::class, 'store']);
     Route::put('/worktimes/{id}', [WorktimesController::class, 'update']);
     Route::delete('/worktimes/{id}', [WorktimesController::class, 'destroy']);
-    Route::get('/worktimes/trashed', [WorktimesController::class, 'getTrashed']);
-    // Khôi phục một Worktime đã bị xóa mềm
+    Route::get('worktimes-trashed', [WorktimesController::class, 'trashedWorktimes'])->name('trashedWorktimes');
     Route::patch('/worktimes/{id}/restore', [WorktimesController::class, 'restore']);
-    // Xóa vĩnh viễn một Worktime đã bị xóa mềm
     Route::delete('/worktimes/{id}/force', [WorktimesController::class, 'forceDestroy']);
 
 

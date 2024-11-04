@@ -28,16 +28,27 @@ class StoreWorktimesRequest extends FormRequest
             'description' => 'nullable|string',
             'start_date' => 'nullable|date',
             'end_date' => 'nullable|date|after_or_equal:start_date',
+            'project_id' => 'required|exists:projects,id',
+            'user_id' => 'required|exists:users,id',
         ];
     }
-
+    
     public function messages()
     {
         return [
             'name.required' => 'Tên thời gian làm việc là bắt buộc.',
             'name.max' => 'Tên thời gian làm việc không được vượt quá 255 ký tự.',
+            'project_id.required' => 'Project ID là bắt buộc.',
+            'project_id.exists' => 'Project ID phải tồn tại.',
+            'start_date.date' => 'Ngày bắt đầu phải là một ngày hợp lệ.',
+            'end_date.date' => 'Ngày kết thúc phải là một ngày hợp lệ.',
+            'end_date.after_or_equal' => 'Ngày kết thúc phải bằng hoặc sau ngày bắt đầu.',
+            'user_id.required' => 'User ID là bắt buộc.',
+            'user_id.exists' => 'Người dùng không tồn tại.',
         ];
     }
+    
+    
 
     protected function failedValidation(Validator $validator)
     {

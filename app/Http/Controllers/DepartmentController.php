@@ -12,7 +12,6 @@ use Illuminate\Validation\Rule;
 
 class DepartmentController extends Controller
 {
-    // Lấy danh sách phòng ban
     public function index()
     {
         $departments = Department::with('users')->get();
@@ -60,7 +59,6 @@ class DepartmentController extends Controller
         }
     }
 
-    // hàm thêm 1 hoặc nhiều user.
     public function addUsersToDepartment(Request $request, $department_id)
     {
         try {
@@ -119,7 +117,6 @@ class DepartmentController extends Controller
         }
     }
 
-    // Hàm cập nhật phòng ban và gán người dùng
     public function update(UpdateDepartmentRequest $request, $departmentId)
     {
         try {
@@ -176,7 +173,6 @@ class DepartmentController extends Controller
         }
     }
 
-    // lấy địa chỉ phòng ban và show lên màng hình
     public function show($id)
     {
         // Tìm phòng ban theo id, kèm theo thông tin các người dùng liên quan
@@ -190,7 +186,6 @@ class DepartmentController extends Controller
         return response()->json($department);
     }
 
-    // Xóa thành viên khỏi phòng ban
     public function removeUserFromDepartment(Request $request, $department_id)
     {
         // Xác thực dữ liệu đầu vào
@@ -244,8 +239,6 @@ class DepartmentController extends Controller
             return response()->json(['error' => 'Failed to remove users from department: ' . $e->getMessage()], 500);
         }
     }
-
-    // Xóa phòng ban
     public function destroy($id)
     {
         $department = Department::find($id);

@@ -28,17 +28,29 @@ class UpdateWorktimesRequest extends FormRequest
             'description' => 'nullable|string',
             'start_date' => 'nullable|date',
             'end_date' => 'nullable|date|after_or_equal:start_date',
-
+            'project_id' => 'sometimes|required|exists:projects,id',
+            'user_id' => 'sometimes|required|exists:users,id', // Thêm user_id vào rules
         ];
     }
-
+    
     public function messages()
     {
         return [
             'name.required' => 'Task name is required.',
-
+            'name.string' => 'Task name must be a string.',
+            'name.max' => 'Task name may not be greater than 255 characters.',
+            'description.string' => 'Description must be a string.',
+            'start_date.date' => 'Start date must be a valid date.',
+            'end_date.date' => 'End date must be a valid date.',
+            'end_date.after_or_equal' => 'End date must be equal to or later than the start date.',
+            'project_id.required' => 'Project ID is required.',
+            'project_id.exists' => 'The specified project is invalid.',
+            'user_id.required' => 'User ID is required.', // Thông báo cho user_id
+            'user_id.exists' => 'The specified user is invalid.', // Thông báo cho user_id không tồn tại
         ];
     }
+    
+    
     protected function failedValidation(Validator $validator)
     {
         throw new HttpResponseException(response()->json([

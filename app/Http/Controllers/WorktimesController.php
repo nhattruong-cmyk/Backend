@@ -3,23 +3,19 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreWorktimesRequest;
+use App\Http\Requests\UpdateWorktimesRequest;
 use App\Models\Worktimes;
 use Illuminate\Http\Request;
 
 class WorktimesController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
+
     public function index()
     {
-        $worktimes = Worktimes::get();
+        $worktimes = Worktimes::with('user')->get();
         return response()->json($worktimes, 200);
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
     public function store(StoreWorktimesRequest $request)
     {
         try {
@@ -46,20 +42,13 @@ class WorktimesController extends Controller
         }
     }
 
-
-    /**
-     * Display the specified resource.
-     */
-    public function show(Worktimes $worktimes)
+    public function show($id)
     {
-        $worktimes = Worktimes::findOrFail($worktimes);
-        return response()->json($worktimes);
+        $worktimes = Worktimes::with('user')->find($id);
+        return response()->json($worktimes, 200);
     }
-
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(StoreWorktimesRequest $request, $id)
+    
+    public function update(UpdateWorktimesRequest $request, $id)
     {
         try {
             // Xác thực dữ liệu đã được thực hiện bởi StoreWorktimesRequest
@@ -87,43 +76,46 @@ class WorktimesController extends Controller
             ], 500);
         }
     }
-    /**
-     * Remove the specified resource from storage.
-     */
+
     public function destroy($id)
     {
         try {
             // Tìm Worktime theo ID
             $worktime = Worktimes::findOrFail($id);
-
+    
+            // Kiểm tra xem worktime có dính khóa ngoại với tasks hay không
+            $tasksCount = $worktime->tasks()->count(); // Đếm số lượng tasks liên quan
+    
+            if ($tasksCount > 0) {
+                return response()->json([
+                    'error' => 'Cannot delete worktime because it is associated with tasks.'
+                ], 400); // 400 Bad Request
+            }
+    
             // Xóa mềm (soft delete)
             $worktime->delete();
-
+    
             return response()->json([
                 'message' => 'Worktime soft deleted successfully',
             ], 200);
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json([
+                'error' => 'Worktime not found.'
+            ], 404); // 404 Not Found
         } catch (\Exception $e) {
             return response()->json([
                 'error' => 'Failed to soft delete worktime: ' . $e->getMessage()
-            ], 500);
+            ], 500); // 500 Internal Server Error
         }
     }
+    
+    
+    
 
-    public function getTrashed()
+    public function trashedWorktimes()
     {
-        try {
-            // Lấy danh sách các bản ghi đã bị xóa mềm
-            $trashedWorktimes = Worktimes::onlyTrashed()->get();
-
-            return response()->json([
-                'message' => 'Trashed worktimes retrieved successfully',
-                'data' => $trashedWorktimes,
-            ], 200);
-        } catch (\Exception $e) {
-            return response()->json([
-                'error' => 'Failed to retrieve trashed worktimes: ' . $e->getMessage()
-            ], 500);
-        }
+        $trashedWorktimes = Worktimes::onlyTrashed()->get();
+        return response()->json($trashedWorktimes);
     }
 
     public function forceDestroy($id)

@@ -9,12 +9,12 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class Task extends Model
 {
     use HasFactory;
-    protected $fillable = ['task_name', 'description', 'status', 'start_date', 'end_date', 'project_id'];
+    protected $fillable = ['task_name', 'description', 'status', 'start_date', 'end_date', 'project_id', 'location_task', 'worktime_id'];
     use SoftDeletes;
     public function projects()
     {
         return $this->belongsToMany(Project::class, 'project_task', 'task_id', 'project_id')
-                    ->withTimestamps();
+            ->withTimestamps();
     }
 
     public function departments()
@@ -23,13 +23,11 @@ class Task extends Model
             ->withTimestamps();
     }
 
-    // Quan hệ một-nhiều với bảng Assignment
     public function assignments()
     {
         return $this->hasMany(Assignment::class);
     }
 
-    // Quan hệ nhiều-nhiều với User thông qua bảng task_user
     public function users()
     {
         return $this->belongsToMany(User::class, 'task_user', 'task_id', 'user_id')
@@ -49,12 +47,10 @@ class Task extends Model
             3 => 'preview',
             4 => 'done'
         ];
-    
+
         // Kiểm tra nếu khóa tồn tại trong mảng
         return $statuses[$value] ?? 'unknown'; // Trả về 'unknown' nếu không tìm thấy giá trị phù hợp
     }
-    
-    // Tạo mutator để lưu status dưới dạng số
     public function setStatusAttribute($value)
     {
         $statuses = [
@@ -62,16 +58,17 @@ class Task extends Model
             'in progress' => 2,
             'preview' => 3,
             'done' => 4,
-            
+
             1 => 1,
             2 => 2,
             3 => 3,
             4 => 4,
 
         ];
-    
+
         // Đặt giá trị status thành 0 (pending) nếu không tìm thấy
         $this->attributes['status'] = $statuses[$value] ?? 1;
     }
+
 
 }

@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens; // Thêm trait này
+use App\Models\Worktimes;
 
 
 class User extends Authenticatable
@@ -91,5 +92,10 @@ class User extends Authenticatable
     public function activityLogs()
     {
         return $this->hasMany(ActivityLog::class);
+    }
+
+    public function worktimes()
+    {
+        return $this->hasMany(Worktimes::class, 'user_id');
     }
 }
