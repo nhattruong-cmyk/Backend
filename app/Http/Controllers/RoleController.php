@@ -183,13 +183,42 @@ class RoleController extends Controller
 
         $permissionsToRemove = $request->permissions;
 
-        // Loại bỏ các quyền khỏi vai trò
-        $role->permissions()->detach($permissionsToRemove);
+        // Lọc các `permission_id` hợp lệ từ bảng Permission
+        $validPermissions = Permission::whereIn('id', $permissionsToRemove)->pluck('id')->toArray();
+        $invalidPermissions = array_diff($permissionsToRemove, $validPermissions);
 
+        // Nếu không có quyền hợp lệ nào trong request, trả về thông báo lỗi
+        if (empty($validPermissions)) {
+            return response()->json([
+                'message' => 'No valid permissions to remove',
+                'invalid_permissions' => $invalidPermissions
+            ], 400); // Trả về mã lỗi 400
+        }
+
+        // Kiểm tra quyền có thuộc vai trò hay không
+        $existingPermissions = $role->permissions()->pluck('permissions.id')->toArray();
+        $permissionsToActuallyRemove = array_intersect($validPermissions, $existingPermissions);
+
+        // Nếu không có quyền nào thực sự tồn tại trong vai trò, trả về lỗi
+        if (empty($permissionsToActuallyRemove)) {
+            return response()->json([
+                'message' => 'No permissions exist in this role to remove',
+                'invalid_permissions' => $validPermissions
+            ], 400); // Đảm bảo trả về mã lỗi 400
+        }
+
+        // Loại bỏ các quyền hợp lệ khỏi vai trò
+        $role->permissions()->detach($permissionsToActuallyRemove);
+
+        // Trả về thông báo thành công mà không có dữ liệu đi kèm
         return response()->json([
-            'message' => 'Permissions removed successfully',
-            'permissions' => $role->permissions // Trả về danh sách quyền còn lại
+            'message' => 'Permissions removed successfully'
         ]);
     }
-    
+
+
+
+
+
+
 }
