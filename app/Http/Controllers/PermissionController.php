@@ -70,12 +70,26 @@ class PermissionController extends Controller
             return response()->json(['message' => 'Permission not found'], 404);
         }
 
-        // Cập nhật thông tin permission
-        $permission->update($request->validated());
+        // Kiểm tra giá trị `parent_id` trong yêu cầu
+        $newParentId = $request->input('parent_id');
 
-        return response()->json($permission, 200); // Trả về permission đã được cập nhật
+        // Nếu `parent_id` là null, nghĩa là muốn xóa mối liên kết với quyền cha
+        if (is_null($newParentId)) {
+            $permission->parent_id = null;
+        } else {
+            // Nếu `parent_id` là một giá trị hợp lệ khác, kiểm tra xem quyền cha có tồn tại không
+            if (!Permission::where('id', $newParentId)->exists()) {
+                return response()->json(['message' => 'Invalid parent_id specified'], 400);
+            }
+            $permission->parent_id = $newParentId;
+        }
+
+        // Cập nhật các thuộc tính khác của quyền
+        $permission->name = $request->input('name', $permission->name);
+        $permission->save();
+
+        return response()->json($permission, 200); // Trả về quyền đã được cập nhật
     }
-
     /**
      * Remove the specified resource from storage.
      */

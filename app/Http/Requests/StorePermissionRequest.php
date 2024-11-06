@@ -5,6 +5,7 @@ namespace App\Http\Requests;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Http\Exceptions\HttpResponseException;
+use App\Models\Permission;
 
 class StorePermissionRequest extends FormRequest
 {
@@ -24,12 +25,20 @@ class StorePermissionRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'name' => 'required|unique:roles,name',
+            'name' => 'required|unique:permissions,name',
             'description' => 'nullable',
-            'permissions' => 'array', // permissions là một mảng chứa ID của các quyền
-            'permissions.*' => 'integer|exists:permissions,id', // Mỗi phần tử phải là ID hợp lệ của Permission
-            'parent_id' => 'nullable|exists:permissions,id', // Kiểm tra nếu parent_id tồn tại trong bảng permissions
-
+            'permissions' => 'array',
+            'permissions.*' => 'integer|exists:permissions,id',
+            'parent_id' => [
+                'nullable',
+                'exists:permissions,id',
+                function ($attribute, $value, $fail) {
+                    // Kiểm tra nếu parent_id bị xóa mềm
+                    if (Permission::onlyTrashed()->where('id', $value)->exists()) {
+                        $fail('Parent permission đã bị xóa mềm và không thể được chọn.');
+                    }
+                },
+            ],
         ];
     }
     public function messages(): array

@@ -5,6 +5,7 @@ namespace App\Http\Requests;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Http\Exceptions\HttpResponseException;
+use App\Models\Permission;
 
 class UpdatePermissionRequest extends FormRequest
 {
@@ -24,9 +25,17 @@ class UpdatePermissionRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'name' => 'sometimes|required|unique:permissions,name,',
-            'parent_id' => 'nullable|exists:permissions,id', // Kiểm tra parent_id có tồn tại trong bảng permissions
-
+            'name' => 'sometimes|required|unique:permissions,name,' . $this->route('permission'),
+            'parent_id' => [
+                'nullable',
+                'exists:permissions,id',
+                function ($attribute, $value, $fail) {
+                    // Kiểm tra nếu parent_id bị xóa mềm
+                    if (Permission::onlyTrashed()->where('id', $value)->exists()) {
+                        $fail('Parent permission đã bị xóa mềm và không thể được chọn.');
+                    }
+                },
+            ],
         ];
     }
     public function messages(): array
