@@ -28,9 +28,11 @@ class UpdateUserRequest extends FormRequest
             'password' => 'sometimes|string|min:6|confirmed',
             'avatar' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048', // Vẫn cho phép cập nhật avatar
             'role_id' => 'sometimes|integer|exists:roles,id',
+            'phone_number' => 'sometimes|digits:10|unique:users,phone_number,' . $this->route('id'), // Thêm validation cho phone_number
+
         ];
     }
-    
+
 
     public function messages()
     {
@@ -46,9 +48,11 @@ class UpdateUserRequest extends FormRequest
             'avatar.max' => 'Avatar không được lớn hơn 2MB.',
             'role_id.integer' => 'phân quyền không hợp lệ.',
             'role_id.exists' => 'phân quyền không tồn tại.',
+            'phone_number.digits' => 'Số điện thoại phải có 10 chữ số.',
+            'phone_number.unique' => 'Số điện thoại đã tồn tại trong hệ thống.',
         ];
     }
-    
+
 
     protected function failedValidation(Validator $validator)
     {

@@ -9,9 +9,10 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens; // Thêm trait này
 use App\Models\Worktimes;
+use Illuminate\Contracts\Auth\MustVerifyEmail;
 
 
-class User extends Authenticatable
+class User extends Authenticatable implements MustVerifyEmail
 {
     use HasApiTokens, HasFactory, Notifiable; // Thêm HasApiTokens vào đây
 
@@ -26,7 +27,12 @@ class User extends Authenticatable
         'email',
         'password',
         'avatar',
-        'role_id'
+        'role_id',
+        'phone_number',
+        'verification_code',
+        'verification_code_expires_at', // Thêm trường này
+        'otp_code', // Thêm otp_code vào đây
+        'otp_expires_at', // Thêm trường này
     ];
 
     /**
@@ -49,6 +55,8 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'verification_code_expires_at' => 'datetime', // Chuyển đổi trường thành Carbon
+            'otp_expires_at' => 'datetime', // Chuyển đổi trường thành Carbon
         ];
     }
     public function role()

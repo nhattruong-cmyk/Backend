@@ -15,13 +15,18 @@ use App\Http\Controllers\CommentController;
 use App\Http\Controllers\WorktimesController;
 use App\Http\Controllers\ActivityLogController;
 use App\Http\Controllers\PermissionController;
+use App\Http\Controllers\PasswordResetController;
 
 
 
-
-Route::post('/register', [AuthController::class, 'register']);
-Route::post('/login', [AuthController::class, 'login']);
-Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth:sanctum');
+Route::post('/register', [UserController::class, 'register']);
+Route::post('/login', [UserController::class, 'login']);
+Route::post('/logout', [UserController::class, 'logout'])->middleware('auth:sanctum');
+Route::get('/verify-email/{id}/{hash}', [UserController::class, 'verify'])->name('verification.verify');
+Route::post('users', [UserController::class, 'store']);
+Route::post('/forgot-password/request', [PasswordResetController::class, 'requestPasswordReset']);
+Route::post('/forgot-password/verify', [PasswordResetController::class, 'verifyCode']);
+Route::post('/forgot-password/reset', [PasswordResetController::class, 'resetPassword']);
 
 Route::middleware('auth:sanctum')->group(function () {
     //role
@@ -35,14 +40,21 @@ Route::middleware('auth:sanctum')->group(function () {
     //user
     Route::get('/users', [UserController::class, 'index']);
     Route::get('/users/{id}', [UserController::class, 'show']);
-    Route::post('users', [UserController::class, 'store']);
     Route::put('/users/{id}', [UserController::class, 'update']);
     Route::delete('/users/{id}', [UserController::class, 'destroy'])->name('destroy');
     Route::delete('/users/{id}/force', [UserController::class, 'forceDestroy'])->name('forceDestroy');
     Route::post('/users/{id}/restore', [UserController::class, 'restore'])->name('restore');
     Route::get('users-trashed', [UserController::class, 'trashedUsers'])->name('trashedUsers');
     Route::post('/users/{id}/update-avatar', [UserController::class, 'updateAvatar']);
-  
+
+    // API yêu cầu xóa tài khoản
+    Route::post('/request-delete-account', [UserController::class, 'requestDeleteAccount']);
+
+    // API xác nhận xóa tài khoản
+    Route::get('/confirm-delete-account/{token}', [UserController::class, 'confirmDeleteAccount']);
+
+
+
     //permission
     Route::get('/permissions', [PermissionController::class, 'index']);
     Route::get('/permissions/{id}', [PermissionController::class, 'show']);

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Models\Project;
 use App\Models\Department;
+use App\Models\Task;
 use App\Models\ActivityLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -13,6 +14,23 @@ use App\Http\Requests\StoreUserRequest;
 use App\Http\Requests\UpdateUserRequest;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+
+
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Validator;
+
+use Illuminate\Support\Facades\Mail;
+
+use Illuminate\Support\Str;
+use App\Mail\VerifyEmailMail;
+use Illuminate\Auth\Events\Verified;
+use App\Mail\AccountDeleted;
+
+use App\Mail\DeleteAccountConfirmation;
+
+use App\Services\MailchimpService;
+
+use App\Services\TwilioService;
 
 
 class UserController extends Controller
@@ -74,6 +92,14 @@ class UserController extends Controller
             // Lấy dữ liệu đã xác thực từ StoreUserRequest
             $validatedData = $request->validated();
 
+            // Chuẩn hóa số điện thoại
+            $phoneNumber = $validatedData['phone_number'];
+            if (substr($phoneNumber, 0, 1) === '0') {
+                $phoneNumber = '84' . substr($phoneNumber, 1);
+            } elseif (substr($phoneNumber, 0, 1) !== '8') {
+                $phoneNumber = '84' . $phoneNumber;
+            }
+
             // Kiểm tra và xử lý tệp avatar nếu có
             $avatarPath = null;
             if ($request->hasFile('avatar')) {
@@ -86,13 +112,27 @@ class UserController extends Controller
                 $avatarPath = $avatarFile->storeAs('avatar', $avatarFileName, 'public');
             }
 
+            // Tạo mã xác nhận ngẫu nhiên
+            $verificationCode = Str::random(6); // Mã xác nhận ngẫu nhiên
+
             // Tạo user mới với avatar path (nếu có)
             $user = User::create([
                 'fullname' => $validatedData['fullname'],
                 'email' => $validatedData['email'],
                 'password' => bcrypt($validatedData['password']), // Mã hóa mật khẩu
+                'phone_number' => $phoneNumber, // Số điện thoại chuẩn hóa lưu vào cơ sở dữ liệu
                 'avatar' => $avatarPath, // Lưu đường dẫn avatar
+                'verification_code' => $verificationCode, // Lưu mã xác nhận
+                'verification_code_expires_at' => now()->addMinutes(10), // Ví dụ: mã xác minh hết hạn sau 10 phút
+                'otp_expires_at' => now()->addMinutes(5), // OTP hết hạn sau 5 phút
             ]);
+
+            // Gửi email xác nhận
+            Mail::to($user->email)->send(new VerifyEmailMail($user));
+
+            // Thêm người dùng vào danh sách Mailchimp
+            $mailchimpService = new MailchimpService();
+            $mailchimpService->addToList($user->email, env('MAILCHIMP_LIST_ID'));
 
             // Kiểm tra nếu có user đăng nhập
             $currentUserId = Auth::check() ? Auth::user()->id : null;
@@ -113,6 +153,94 @@ class UserController extends Controller
             return response()->json(['error' => 'Failed to create user: ' . $e->getMessage()], 500);
         }
     }
+    // UserController.php
+    public function verify($id, $hash)
+    {
+        // Tìm người dùng theo ID
+        $user = User::findOrFail($id);
+
+        // Kiểm tra mã hash có hợp lệ không
+        if (sha1($user->email) !== $hash) {
+            return response()->json(['error' => 'Invalid verification link.'], 400);
+        }
+
+        // Kiểm tra xem email đã được xác nhận chưa
+        if ($user->hasVerifiedEmail()) {
+            return response()->json(['message' => 'Email already verified.']);
+        }
+
+        // Đánh dấu email đã được xác nhận
+        $user->markEmailAsVerified();
+
+        // Cập nhật trạng thái thành 'subscribed' trên Mailchimp
+        $mailchimpService = new MailchimpService();
+        $mailchimpService->updateMemberStatus($user->email, 'subscribed');
+
+        return response()->json(['message' => 'Email verified and subscription updated successfully!']);
+    }
+
+    public function requestDeleteAccount(Request $request)
+    {
+        $user = $request->user();  // Lấy thông tin người dùng đang đăng nhập
+
+        // Kiểm tra nếu người dùng đã yêu cầu xóa tài khoản
+        if ($user->delete_token) {
+            return response()->json(['message' => 'You have already requested to delete your account. Please check your email.'], 400);
+        }
+
+        // Tạo token xác nhận
+        $token = Str::random(60);
+        $user->delete_token = $token;  // Lưu token vào cơ sở dữ liệu (trong cột 'delete_token')
+        $user->save();
+
+        // Gửi email xác nhận xóa tài khoản
+        try {
+            Mail::to($user->email)->send(new DeleteAccountConfirmation($user));
+            return response()->json(['message' => 'Confirmation email sent.']);
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'Failed to send confirmation email: ' . $e->getMessage()], 500);
+        }
+    }
+    public function confirmDeleteAccount($token)
+    {
+        // Tìm người dùng với token xác nhận
+        $user = User::where('delete_token', $token)->first();
+
+        if (!$user) {
+            return response()->json(['message' => 'Invalid token'], 404);
+        }
+
+        // Thực hiện xóa dữ liệu người dùng
+        try {
+            // Hủy đăng ký người dùng trên Mailchimp
+            $mailchimpService = new MailchimpService();
+            $mailchimpService->unsubscribeUser($user->email);
+
+            // Xóa mềm người dùng khỏi hệ thống
+            $user->delete(); // Hoặc forceDelete() nếu bạn muốn xóa vĩnh viễn
+            // Gửi email thông báo về việc xóa tài khoản
+            Mail::to($user->email)->send(new AccountDeleted($user));
+            // Xóa tất cả các dữ liệu liên quan (như công việc, dự án, phòng ban)
+            Project::where('user_id', $user->id)->delete();
+            $user->task()->detach();
+            Department::whereHas('users', function ($query) use ($user) {
+                $query->where('users.id', $user->id);
+            })->detach();
+
+            // Ghi lại lịch sử hoạt động
+            ActivityLog::create([
+                'user_id' => $user->id, // Người thực hiện thao tác (người dùng tự xóa tài khoản)
+                'loggable_id' => $user->id,
+                'loggable_type' => 'App\Models\User',
+                'action' => 'deleted',
+                'changes' => json_encode($user->toArray()),
+            ]);
+
+            return response()->json(['message' => 'Account deleted successfully']);
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'Failed to delete account: ' . $e->getMessage()], 500);
+        }
+    }
 
     // Cập nhật thông tin người dùng
     public function update(UpdateUserRequest $request, $id)
@@ -129,6 +257,26 @@ class UserController extends Controller
 
         // Bỏ qua bất kỳ thay đổi nào liên quan đến avatar
         unset($updatedData['avatar']); // Không cập nhật avatar
+
+        // Kiểm tra và chuyển đổi số điện thoại nếu có
+        if (isset($updatedData['phone_number'])) {
+            $phone = $updatedData['phone_number'];
+
+            // Kiểm tra nếu số điện thoại bắt đầu với '0'
+            if (substr($phone, 0, 1) === '0') {
+                // Chuyển số điện thoại từ 0xxxx thành 84xxxx
+                $updatedData['phone_number'] = '84' . substr($phone, 1);
+            }
+
+            // Kiểm tra trùng lặp số điện thoại
+            $existingPhone = User::where('phone_number', $updatedData['phone_number'])
+                ->where('id', '!=', $id) // Đảm bảo không kiểm tra trùng với chính người dùng đang sửa
+                ->exists();
+
+            if ($existingPhone) {
+                return response()->json(['message' => 'Số điện thoại đã tồn tại'], 422);
+            }
+        }
 
         // Kiểm tra quyền hạn người dùng và chỉ cho phép cập nhật nếu đúng điều kiện
         if ($user->hasRole('Admin')) {
@@ -344,6 +492,122 @@ class UserController extends Controller
         $trashedUsers = User::onlyTrashed()->get();
         return response()->json($trashedUsers);
     }
+    // Đăng ký người dùng
+    public function register(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'fullname' => 'required|string|max:255',
+            'email' => 'required|string|email|max:255|unique:users',
+            'password' => 'required|string|min:6',
+        ]);
 
+        if ($validator->fails()) {
+            return response()->json($validator->errors(), 422);
+        }
+
+        // Tạo mã xác nhận ngẫu nhiên
+        $verificationCode = Str::random(6);
+
+        // Tạo user mới với mã xác nhận và thời gian hết hạn
+        $user = User::create([
+            'fullname' => $request->fullname,
+            'email' => $request->email,
+            'password' => Hash::make($request->password),
+            'verification_code' => $verificationCode,
+            'verification_code_expires_at' => now()->addMinutes(10), // Mã xác minh hết hạn sau 10 phút
+        ]);
+
+        // Gửi email xác nhận
+        Mail::to($user->email)->send(new VerifyEmailMail($user));
+        // Thêm người dùng vào danh sách Mailchimp
+        $mailchimpService = new MailchimpService();
+        $mailchimpService->addToList($user->email, env('MAILCHIMP_LIST_ID'));
+
+        // Kiểm tra nếu có user đăng nhập
+        $currentUserId = Auth::check() ? Auth::user()->id : null;
+
+        // Ghi lại lịch sử hoạt động sau khi tạo user thành công
+        ActivityLog::create([
+            'user_id' => $currentUserId, // Người dùng thực hiện thao tác (nếu có auth)
+            'loggable_id' => $user->id, // ID của user vừa được tạo
+            'loggable_type' => 'App\Models\User', // Loại đối tượng (User)
+            'action' => 'created', // Hành động được thực hiện (tạo user)
+            'changes' => json_encode($request->except('password')), // Lưu lại dữ liệu đã gửi (không lưu password)
+        ]);
+        return response()->json([
+            'status' => 'success',
+            'message' => 'User registered successfully. Please check your email to verify your account.',
+        ], 201);
+    }
+
+    // Đăng nhập người dùng
+    public function login(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'email' => 'required|string|email',
+            'password' => 'required|string|min:6',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json($validator->errors(), 422);
+        }
+
+        $user = User::where('email', $request->email)->first();
+
+        // Kiểm tra xem người dùng có tồn tại và mật khẩu có đúng không
+        if (!$user || !Hash::check($request->password, $user->password)) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Invalid credentials',
+            ], 401);
+        }
+        // Kiểm tra xem email người dùng đã được xác thực chưa
+        if (!$user->hasVerifiedEmail()) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Email not verified. Please verify your email first.',
+            ], 400); // Trả về mã lỗi 400 nếu email chưa được xác thực
+        }
+        $token = $user->createToken('auth_token')->plainTextToken;
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Login successful',
+            'access_token' => $token,
+            'token_type' => 'Bearer',
+        ]);
+    }
+
+    // Đăng xuất người dùng
+    public function logout(Request $request)
+    {
+        $request->user()->tokens()->delete();
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Logged out successfully',
+        ]);
+    }
+    public function verifyEmail(Request $request)
+    {
+        // Tìm user với mã xác nhận
+        $user = User::where('verification_code', $request->code)
+            ->where('verification_code_expires_at', '>', now())
+            ->first();
+
+        if (!$user) {
+            return redirect('/register')->with('error', 'Invalid or expired verification code.');
+        }
+
+        // Đặt cờ xác minh và xóa mã xác nhận
+        $user->update([
+            'is_verified' => true,
+            'verification_code' => null,
+            'verification_code_expires_at' => null,
+        ]);
+
+        // Chuyển hướng đến trang chủ sau khi xác nhận thành công
+        return redirect('/')->with('success', 'Your email has been verified successfully.');
+    }
 
 }

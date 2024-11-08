@@ -34,5 +34,23 @@ return [
             'channel' => env('SLACK_BOT_USER_DEFAULT_CHANNEL'),
         ],
     ],
+    'mailchimp' => [
+        'api_key' => env('MAILCHIMP_API_KEY'),
+        'list_id' => env('MAILCHIMP_LIST_ID'),
+        'server_prefix' => env('MAILCHIMP_SERVER_PREFIX'), // Lấy server prefix từ .env
+    ],
+    'infobip' => [
+        'api_key' => env('INFOBIP_API_KEY'),
+        'base_url' => env('INFOBIP_BASE_URL'),
+    ],
+    'twilio' => [
+        'sid' => env('TWILIO_SID'),
+        'auth_token' => env('TWILIO_AUTH_TOKEN'),
+        'phone_number' => env('TWILIO_PHONE_NUMBER'),
+    ],
+    'telegram' => [
+        'bot_token' => env('TELEGRAM_BOT_TOKEN'),
+        'chat_id' => env('TELEGRAM_CHAT_ID'), // Thêm dòng này để lưu chat ID
 
+    ],
 ];

@@ -28,6 +28,8 @@ class StoreUserRequest extends FormRequest
             'email' => 'required|string|email|max:255|unique:users',
             'password' => 'required|string|min:6',
             'avatar' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048', // Thêm quy tắc cho ảnh đại diện
+            'phone_number' => 'nullable|numeric|unique:users,phone_number', // Thêm xác thực cho số điện thoại
+
         ];
     }
 
