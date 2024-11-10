@@ -29,7 +29,6 @@ class StoreWorktimesRequest extends FormRequest
             'start_date' => 'nullable|date',
             'end_date' => 'nullable|date|after_or_equal:start_date',
             'project_id' => 'required|exists:projects,id',
-            'user_id' => 'required|exists:users,id',
         ];
     }
     
@@ -43,8 +42,6 @@ class StoreWorktimesRequest extends FormRequest
             'start_date.date' => 'Ngày bắt đầu phải là một ngày hợp lệ.',
             'end_date.date' => 'Ngày kết thúc phải là một ngày hợp lệ.',
             'end_date.after_or_equal' => 'Ngày kết thúc phải bằng hoặc sau ngày bắt đầu.',
-            'user_id.required' => 'User ID là bắt buộc.',
-            'user_id.exists' => 'Người dùng không tồn tại.',
         ];
     }
     

@@ -6,6 +6,8 @@ use App\Http\Requests\StoreWorktimesRequest;
 use App\Http\Requests\UpdateWorktimesRequest;
 use App\Models\Worktimes;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+
 
 class WorktimesController extends Controller
 {
@@ -21,10 +23,13 @@ class WorktimesController extends Controller
         try {
             // Dữ liệu đã được xác thực bởi StoreWorktimesRequest
             $validatedData = $request->validated();
-
+    
+            // Thêm ID của người dùng đang đăng nhập vào dữ liệu đã xác thực
+            $validatedData['user_id'] = Auth::id();
+    
             // Tạo Worktime mới
             $worktime = Worktimes::create($validatedData);
-
+    
             return response()->json([
                 'message' => 'Worktime created successfully',
                 'worktime' => $worktime,
@@ -41,7 +46,7 @@ class WorktimesController extends Controller
             ], 500);
         }
     }
-
+    
     public function show($id)
     {
         $worktimes = Worktimes::with('user')->find($id);
@@ -51,19 +56,27 @@ class WorktimesController extends Controller
     public function update(UpdateWorktimesRequest $request, $id)
     {
         try {
-            // Xác thực dữ liệu đã được thực hiện bởi StoreWorktimesRequest
+            // Lấy dữ liệu đã xác thực từ UpdateWorktimesRequest
             $validatedData = $request->validated();
-
+    
             // Tìm Worktime cần cập nhật
             $worktime = Worktimes::findOrFail($id);
-
-            // Cập nhật Worktime với dữ liệu mới
+    
+            // Đảm bảo `user_id` không bị thay đổi bằng cách loại bỏ khỏi dữ liệu cập nhật
+            unset($validatedData['user_id']);
+    
+            // Cập nhật Worktime với dữ liệu mới, ngoại trừ user_id
             $worktime->update($validatedData);
-
+    
             return response()->json([
                 'message' => 'Worktime updated successfully',
                 'worktime' => $worktime,
             ], 200);
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            // Trả về lỗi nếu không tìm thấy Worktime
+            return response()->json([
+                'error' => 'Worktime not found.'
+            ], 404);
         } catch (\Illuminate\Validation\ValidationException $e) {
             // Bắt lỗi xác thực và trả về thông báo lỗi
             return response()->json([
@@ -75,7 +88,7 @@ class WorktimesController extends Controller
                 'error' => 'Failed to update worktime: ' . $e->getMessage()
             ], 500);
         }
-    }
+    }   
 
     public function destroy($id)
     {
@@ -109,9 +122,6 @@ class WorktimesController extends Controller
         }
     }
     
-    
-    
-
     public function trashedWorktimes()
     {
         $trashedWorktimes = Worktimes::onlyTrashed()->get();
