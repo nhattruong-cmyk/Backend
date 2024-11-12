@@ -4,21 +4,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Xác Nhận Email</title>
+    <title>Xác Nhận Mã OTP</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet"
         integrity="sha384-rbsA2VBKQhggwzxH7pPCaAqO46MgnOM80zW1RWuH61DGLwZJEdK2Kadq2F9CUG65" crossorigin="anonymous">
     <style>
         .container {
             max-width: 600px;
             margin: 20px auto;
-            background-color: #ffffff;
             border-radius: 8px;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
             border: 1px solid #ddd;
         }
 
         .header {
-            background-color: #4CAF50;
+            background-color: #FF5722;
             color: white;
             border-radius: 8px 8px 0 0;
             padding: 25px;
@@ -28,25 +27,13 @@
             padding: 30px;
         }
 
-        .confirmation-text {
-            font-size: 20px;
+        .otp-code {
+            font-size: 28px;
             font-weight: bold;
             color: #FF5722;
             margin: 20px 0;
+            letter-spacing: 2px;
             text-align: center;
-        }
-
-        .button {
-            background-color: #4CAF50;
-            color: white !important;
-            padding: 15px 32px;
-            text-align: center;
-            text-decoration: none;
-            display: inline-block;
-            border-radius: 5px;
-            font-size: 16px;
-            margin-top: 20px;
-            transition: all 0.3s ease;
         }
 
         .footer {
@@ -56,38 +43,24 @@
             color: #777;
             padding: 10px 0;
         }
-
-        .footer p {
-            margin: 5px 0;
-        }
-
-        .logo {
-            width: 120px;
-            margin-top: 20px;
-        }
-
-        .header h1 {
-            font-size: 24px;
-            margin: 0;
-        }
     </style>
 </head>
 
 <body>
     <div class="container">
         <div class="header">
-            <h1 class="text-center">Xác Nhận Email</h1>
+            <h1 class="text-center">Mã Xác Thực OTP</h1>
         </div>
         <div class="content">
-            <p>Cảm ơn bạn đã đăng ký! Vui lòng nhấp vào nút dưới đây để xác nhận địa chỉ email của bạn.</p>
-            <div class="confirmation-text">
-                <a href="http://localhost:3000/taskmaneger/verify-email/{{ $user->id }}/{{ sha1($user->email) }}"
-                    class="button">Xác Nhận Email</a>
-            </div>
+            <p>Xin chào {{ $user->fullname }},</p>
+            <p>Bạn đã yêu cầu đặt lại mật khẩu. Vui lòng sử dụng mã OTP dưới đây để tiếp tục:</p>
+            <div class="otp-code">{{ $verificationCode }}</div>
+            <p>Mã này có hiệu lực trong 10 phút. Nếu bạn không yêu cầu đặt lại mật khẩu, vui lòng bỏ qua email này.</p>
         </div>
         <div class="footer">
-            <p>Nếu bạn không đăng ký tài khoản này, vui lòng bỏ qua email này.</p>
-            <img src="https://your-logo-url.com/logo.png" alt="Logo" class="logo">
+            <p>Trân trọng,</p>
+            <p>Đội ngũ Hỗ trợ</p>
+            <img src="https://your-logo-url.com/logo.png" alt="Logo" class="img-fluid">
         </div>
     </div>
 

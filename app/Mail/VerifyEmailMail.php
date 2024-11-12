@@ -12,6 +12,7 @@ class VerifyEmailMail extends Mailable
     use Queueable, SerializesModels;
 
     public $user;
+    public $verificationCode;
 
     /**
      * Tạo một instance mới.
@@ -19,9 +20,10 @@ class VerifyEmailMail extends Mailable
      * @param \App\Models\User $user
      * @return void
      */
-    public function __construct(User $user)
+    public function __construct(User $user, $verificationCode = null)
     {
         $this->user = $user;
+        $this->verificationCode = $verificationCode ?? $user->verification_code;  // Nếu không có mã xác nhận, lấy từ user
     }
 
     /**
@@ -34,6 +36,7 @@ class VerifyEmailMail extends Mailable
         return $this->view('emails.verify-email')
             ->with([
                 'verificationUrl' => route('verification.verify', ['id' => $this->user->id, 'hash' => sha1($this->user->email)]),
+                'verificationCode' => $this->verificationCode,  // Truyền mã xác nhận vào view
             ]);
     }
 

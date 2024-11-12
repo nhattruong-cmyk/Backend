@@ -31,6 +31,7 @@ use App\Mail\DeleteAccountConfirmation;
 use App\Services\MailchimpService;
 
 use App\Services\TwilioService;
+use Illuminate\Support\Facades\DB;
 
 
 class UserController extends Controller
@@ -123,12 +124,12 @@ class UserController extends Controller
                 'phone_number' => $phoneNumber, // Số điện thoại chuẩn hóa lưu vào cơ sở dữ liệu
                 'avatar' => $avatarPath, // Lưu đường dẫn avatar
                 'verification_code' => $verificationCode, // Lưu mã xác nhận
-                'verification_code_expires_at' => now()->addMinutes(10), // Ví dụ: mã xác minh hết hạn sau 10 phút
+                'verification_code_expires_at' => now()->addMinutes(3), // Ví dụ: mã xác minh hết hạn sau 10 phút
                 'otp_expires_at' => now()->addMinutes(5), // OTP hết hạn sau 5 phút
             ]);
 
             // Gửi email xác nhận
-            Mail::to($user->email)->send(new VerifyEmailMail($user));
+            Mail::to($user->email)->send(new VerifyEmailMail($user, $verificationCode));
 
             // Thêm người dùng vào danh sách Mailchimp
             $mailchimpService = new MailchimpService();
@@ -505,16 +506,16 @@ class UserController extends Controller
             return response()->json($validator->errors(), 422);
         }
 
-        // Tạo mã xác nhận ngẫu nhiên
-        $verificationCode = Str::random(6);
+        // // Tạo mã xác nhận ngẫu nhiên
+        // $verificationCode = Str::random(6);
 
         // Tạo user mới với mã xác nhận và thời gian hết hạn
         $user = User::create([
             'fullname' => $request->fullname,
             'email' => $request->email,
             'password' => Hash::make($request->password),
-            'verification_code' => $verificationCode,
-            'verification_code_expires_at' => now()->addMinutes(10), // Mã xác minh hết hạn sau 10 phút
+            // 'verification_code' => $verificationCode,
+            'verification_code_expires_at' => now()->addMinutes(3), // Mã xác minh hết hạn sau 10 phút
         ]);
 
         // Gửi email xác nhận
@@ -540,6 +541,7 @@ class UserController extends Controller
         ], 201);
     }
 
+
     // Đăng nhập người dùng
     public function login(Request $request)
     {
@@ -561,6 +563,20 @@ class UserController extends Controller
                 'message' => 'Invalid credentials',
             ], 401);
         }
+        // Kiểm tra nếu mã OTP đã hết hạn
+        if (!$user->hasVerifiedEmail() && $user->verification_code_expires_at < now()) {
+            // Nếu mã OTP đã hết hạn, đặt lại mã và thời gian hết hạn thành null
+            $user->update([
+                'verification_code' => null,
+                'verification_code_expires_at' => null,
+            ]);
+
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Verification code expired. Please request a new one.',
+            ], 400);
+        }
+
         // Kiểm tra xem email người dùng đã được xác thực chưa
         if (!$user->hasVerifiedEmail()) {
             return response()->json([
@@ -592,11 +608,20 @@ class UserController extends Controller
     {
         // Tìm user với mã xác nhận
         $user = User::where('verification_code', $request->code)
-            ->where('verification_code_expires_at', '>', now())
             ->first();
 
-        if (!$user) {
-            return redirect('/register')->with('error', 'Invalid or expired verification code.');
+        // Kiểm tra nếu người dùng không tồn tại hoặc mã OTP đã hết hạn
+        if (!$user || $user->verification_code_expires_at < now()) {
+            // Nếu mã OTP đã hết hạn, đặt lại mã và thời gian hết hạn thành null
+            if ($user) {
+                $user->update([
+                    'verification_code' => null,
+                    'verification_code_expires_at' => null,
+                ]);
+            }
+
+            // Chuyển hướng người dùng đến trang đăng ký với thông báo lỗi
+            return redirect('/register')->with('error', 'Your verification code has expired. Please request a new one.');
         }
 
         // Đặt cờ xác minh và xóa mã xác nhận
@@ -609,5 +634,47 @@ class UserController extends Controller
         // Chuyển hướng đến trang chủ sau khi xác nhận thành công
         return redirect('/')->with('success', 'Your email has been verified successfully.');
     }
+    public function resendVerificationCode(Request $request)
+    {
+        // Lấy người dùng đã đăng nhập
+        $user = User::find(Auth::id());
+
+        // Kiểm tra xem người dùng có tồn tại hay không
+        if (!$user) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'User not found.'
+            ], 404);
+        }
+
+        // Kiểm tra xem mã xác nhận còn hiệu lực hay chưa
+        if ($user->verification_code_expires_at > now()) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Your verification code is still valid. Please use the existing code.'
+            ], 400);
+        }
+
+        // Tạo mã xác nhận mới
+        $verificationCode = Str::random(6);
+
+        // Cập nhật mã xác nhận mới và thời gian hết hạn (10 phút sau)
+        $user->verification_code = $verificationCode;
+        $user->verification_code_expires_at = now()->addMinutes(3); // Mã xác minh mới hết hạn sau 10 phút
+        $user->save(); // Lưu vào cơ sở dữ liệu
+
+        // Gửi lại email xác nhận với mã mới
+        Mail::to($user->email)->send(new VerifyEmailMail($user));
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'A new verification code has been sent to your email.'
+        ], 200);
+    }
+
+
+
+
+
 
 }

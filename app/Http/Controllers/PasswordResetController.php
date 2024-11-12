@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
 use App\Services\TelegramService;
+use App\Mail\OtpEmailMail;
 
 class PasswordResetController extends Controller
 {
@@ -51,9 +52,8 @@ class PasswordResetController extends Controller
             $user->verification_code_expires_at = Carbon::now()->addMinutes(10);
             $user->save();
 
-            Mail::raw("Your email verification code is: $verificationCode", function ($message) use ($user) {
-                $message->to($user->email)->subject('Password Reset Verification Code');
-            });
+            Mail::to($user->email)->send(new OtpEmailMail($user, $verificationCode));
+
         } elseif ($request->has('phone_number')) {
             $otpCode = rand(100000, 999999); // Tạo mã OTP cho SMS
             $user->otp_code = $otpCode;
@@ -156,5 +156,7 @@ class PasswordResetController extends Controller
 
         return response()->json(['message' => 'Password reset successful']);
     }
+
+
 
 }
