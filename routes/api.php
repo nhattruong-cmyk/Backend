@@ -86,7 +86,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/projects/{project_id}/add-tasks', [ProjectController::class, 'addTasks']); // Thêm nhiều task vào dự án
     Route::post('/projects/{project_id}/add-departments', [ProjectController::class, 'addDepartmentToProject']);
     Route::post('/projects/{project_id}/remove-departments', [ProjectController::class, 'removeDepartmentFromProject']);
-
+    Route::get('/projects-trashed', [ProjectController::class, 'trashedProjects']);
+    Route::post('/projects/{id}/restore', [ProjectController::class, 'restore']);
 
     // Tasks
     Route::get('/tasks', [TaskController::class, 'index']);

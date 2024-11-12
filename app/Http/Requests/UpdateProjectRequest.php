@@ -35,7 +35,6 @@ class UpdateProjectRequest extends FormRequest
             'start_date' => 'sometimes|required|date',
             'end_date' => 'sometimes|nullable|date|after_or_equal:start_date',
             'status' => 'sometimes|required|integer|in:1,2,3,4',
-            'user_id' => 'sometimes|required|exists:users,id',
         ];
     }
     
@@ -48,7 +47,6 @@ class UpdateProjectRequest extends FormRequest
             'start_date.required' => 'The start date is required.',
             'end_date.after_or_equal' => 'The end date must be after or equal to the start date.',
             'status.in' => 'Status must be one of the following: 1,2,3,4',
-            'user_id.exists' => 'The user ID must exist in the users table.',
             'project_name.unique' => 'The project name has already been taken. Please choose a different name.',
 
         ];
