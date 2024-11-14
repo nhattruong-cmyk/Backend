@@ -9,6 +9,7 @@
         "drewm/mailchimp-api": "^2.5",
         "laravel/framework": "^11.9",
         "laravel/sanctum": "^4.0",
+        "laravel/socialite": "^5.16",
         "laravel/tinker": "^2.9",
         "mailchimp/marketing": "^3.0"
     },

@@ -30,9 +30,11 @@ class User extends Authenticatable implements MustVerifyEmail
         'role_id',
         'phone_number',
         'verification_code',
-        'verification_code_expires_at', // Thêm trường này
-        'otp_code', // Thêm otp_code vào đây
-        'otp_expires_at', // Thêm trường này
+        'verification_code_expires_at',
+        'otp_code',
+        'otp_expires_at',
+        'google_id',
+
     ];
 
     /**

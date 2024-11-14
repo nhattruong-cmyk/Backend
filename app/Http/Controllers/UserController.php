@@ -32,6 +32,7 @@ use App\Services\MailchimpService;
 
 use App\Services\TwilioService;
 use Illuminate\Support\Facades\DB;
+use Laravel\Socialite\Facades\Socialite;
 
 
 class UserController extends Controller
@@ -154,7 +155,7 @@ class UserController extends Controller
             return response()->json(['error' => 'Failed to create user: ' . $e->getMessage()], 500);
         }
     }
-    // UserController.php
+
     public function verify($id, $hash)
     {
         // Tìm người dùng theo ID
@@ -169,15 +170,27 @@ class UserController extends Controller
         if ($user->hasVerifiedEmail()) {
             return response()->json(['message' => 'Email already verified.']);
         }
-
+        // Kiểm tra mã đã hết hạn chưa
+        if ($user->verification_code_expires_at < now()) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Your verification code has expired. Please request a new one.'
+            ], 400);
+        }
         // Đánh dấu email đã được xác nhận
         $user->markEmailAsVerified();
-
+        $user->update([
+            'verification_code' => null,
+            'verification_code_expires_at' => null,
+        ]);
         // Cập nhật trạng thái thành 'subscribed' trên Mailchimp
         $mailchimpService = new MailchimpService();
         $mailchimpService->updateMemberStatus($user->email, 'subscribed');
 
-        return response()->json(['message' => 'Email verified and subscription updated successfully!']);
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Email verified successfully.'
+        ], 200);
     }
 
     public function requestDeleteAccount(Request $request)
@@ -494,18 +507,8 @@ class UserController extends Controller
         return response()->json($trashedUsers);
     }
     // Đăng ký người dùng
-    public function register(Request $request)
+    public function register(StoreUserRequest $request)
     {
-        $validator = Validator::make($request->all(), [
-            'fullname' => 'required|string|max:255',
-            'email' => 'required|string|email|max:255|unique:users',
-            'password' => 'required|string|min:6',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json($validator->errors(), 422);
-        }
-
         // // Tạo mã xác nhận ngẫu nhiên
         // $verificationCode = Str::random(6);
 
@@ -604,40 +607,22 @@ class UserController extends Controller
             'message' => 'Logged out successfully',
         ]);
     }
-    public function verifyEmail(Request $request)
-    {
-        // Tìm user với mã xác nhận
-        $user = User::where('verification_code', $request->code)
-            ->first();
-
-        // Kiểm tra nếu người dùng không tồn tại hoặc mã OTP đã hết hạn
-        if (!$user || $user->verification_code_expires_at < now()) {
-            // Nếu mã OTP đã hết hạn, đặt lại mã và thời gian hết hạn thành null
-            if ($user) {
-                $user->update([
-                    'verification_code' => null,
-                    'verification_code_expires_at' => null,
-                ]);
-            }
-
-            // Chuyển hướng người dùng đến trang đăng ký với thông báo lỗi
-            return redirect('/register')->with('error', 'Your verification code has expired. Please request a new one.');
-        }
-
-        // Đặt cờ xác minh và xóa mã xác nhận
-        $user->update([
-            'is_verified' => true,
-            'verification_code' => null,
-            'verification_code_expires_at' => null,
-        ]);
-
-        // Chuyển hướng đến trang chủ sau khi xác nhận thành công
-        return redirect('/')->with('success', 'Your email has been verified successfully.');
-    }
+ 
     public function resendVerificationCode(Request $request)
     {
-        // Lấy người dùng đã đăng nhập
-        $user = User::find(Auth::id());
+        // Lấy email từ request hoặc session
+        $email = $request->email ?? session('user_email'); // Sử dụng email từ request hoặc session
+
+        // Kiểm tra xem email có tồn tại không
+        if (!$email) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Email is required.'
+            ], 400);
+        }
+
+        // Lấy người dùng dựa trên email
+        $user = User::where('email', $email)->first();
 
         // Kiểm tra xem người dùng có tồn tại hay không
         if (!$user) {
@@ -651,7 +636,7 @@ class UserController extends Controller
         if ($user->verification_code_expires_at > now()) {
             return response()->json([
                 'status' => 'error',
-                'message' => 'Your verification code is still valid. Please use the existing code.'
+                'message' => 'Mã xác minh của bạn vẫn hợp lệ. Vui lòng sử dụng mã hiện có.'
             ], 400);
         }
 
@@ -668,12 +653,67 @@ class UserController extends Controller
 
         return response()->json([
             'status' => 'success',
-            'message' => 'A new verification code has been sent to your email.'
+            'message' => 'Mã xác minh mới đã được gửi đến email của bạn.'
         ], 200);
     }
 
+    public function redirectToGoogle()
+    {
+        return Socialite::driver('google')->redirect();
+    }
+    // Chuyển hướng người dùng đến Google
 
+    public function handleGoogleCallback(Request $request)
+    {
+        try {
+            // Lấy thông tin người dùng từ Google
+            $googleUser = Socialite::driver('google')->user();
 
+            // Kiểm tra xem người dùng đã tồn tại trong hệ thống chưa
+            $user = User::where('google_id', $googleUser->getId())->orWhere('email', $googleUser->getEmail())->first();
+
+            if ($user) {
+                // Nếu người dùng đã tồn tại, kiểm tra xem mã xác minh có còn hiệu lực không
+                if ($user->verification_code_expires_at && $user->verification_code_expires_at > now()) {
+                    // Nếu mã xác minh còn hiệu lực, đăng nhập người dùng
+                    Auth::login($user);
+                    return redirect()->route('dashboard');  // Chuyển hướng người dùng đến Dashboard
+                } else {
+                    // Nếu mã xác minh hết hạn, tạo lại mã xác minh và gửi email xác nhận
+                    // $verificationCode = Str::random(6);
+                    $user->update([
+                        // 'verification_code' => $verificationCode,
+                        'verification_code_expires_at' => now()->addMinutes(3), // Mã xác minh có thời gian hết hạn mới
+                    ]);
+
+                    // Gửi lại email xác nhận
+                    Mail::to($user->email)->send(new VerifyEmailMail($user));
+
+                    // Chuyển hướng người dùng đến trang yêu cầu xác minh email
+                    return redirect()->route('verification.notice');
+                }
+            } else {
+                // Nếu người dùng chưa tồn tại, tạo người dùng mới với Google
+                $user = User::create([
+                    'fullname' => $googleUser->getName(),
+                    'email' => $googleUser->getEmail(),
+                    'google_id' => $googleUser->getId(),
+                    'password' => bcrypt('randomPassword'), // Tạo mật khẩu mặc định
+                    // 'verification_code' => Str::random(6), // Tạo mã xác minh ngẫu nhiên
+                    'verification_code_expires_at' => now()->addMinutes(3), // Mã xác minh hết hạn sau 10 phút
+                ]);
+
+                // Gửi email xác nhận
+                Mail::to($user->email)->send(new VerifyEmailMail($user));
+
+                // Chuyển hướng người dùng đến trang yêu cầu xác minh email
+                return redirect()->route('verification.notice');
+            }
+
+        } catch (\Exception $e) {
+            return redirect('/')->with('error', 'Something went wrong, please try again.');
+        }
+    }
 
 
 
