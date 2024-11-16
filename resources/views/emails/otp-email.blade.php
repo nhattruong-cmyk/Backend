@@ -60,7 +60,7 @@
         <div class="footer">
             <p>Trân trọng,</p>
             <p>Đội ngũ Hỗ trợ</p>
-            <img src="https://your-logo-url.com/logo.png" alt="Logo" class="img-fluid">
+            <h2>NHĐT</h2>
         </div>
     </div>
 

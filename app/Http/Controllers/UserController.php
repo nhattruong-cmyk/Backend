@@ -33,7 +33,7 @@ use App\Services\MailchimpService;
 use App\Services\TwilioService;
 use Illuminate\Support\Facades\DB;
 use Laravel\Socialite\Facades\Socialite;
-
+use Google\Client;
 
 class UserController extends Controller
 {
@@ -607,7 +607,7 @@ class UserController extends Controller
             'message' => 'Logged out successfully',
         ]);
     }
- 
+
     public function resendVerificationCode(Request $request)
     {
         // Lấy email từ request hoặc session
@@ -641,13 +641,12 @@ class UserController extends Controller
         }
 
         // Tạo mã xác nhận mới
-        $verificationCode = Str::random(6);
 
         // Cập nhật mã xác nhận mới và thời gian hết hạn (10 phút sau)
-        $user->verification_code = $verificationCode;
-        $user->verification_code_expires_at = now()->addMinutes(3); // Mã xác minh mới hết hạn sau 10 phút
-        $user->save(); // Lưu vào cơ sở dữ liệu
-
+        $user->update([
+            'verification_code_expires_at' => now()->addMinutes(3),
+        ]);
+        
         // Gửi lại email xác nhận với mã mới
         Mail::to($user->email)->send(new VerifyEmailMail($user));
 
@@ -657,63 +656,84 @@ class UserController extends Controller
         ], 200);
     }
 
-    public function redirectToGoogle()
-    {
-        return Socialite::driver('google')->redirect();
-    }
-    // Chuyển hướng người dùng đến Google
-
-    public function handleGoogleCallback(Request $request)
+    public function handleGoogleLogin(Request $request)
     {
         try {
-            // Lấy thông tin người dùng từ Google
-            $googleUser = Socialite::driver('google')->user();
+            $googleToken = $request->input('credential');
 
-            // Kiểm tra xem người dùng đã tồn tại trong hệ thống chưa
-            $user = User::where('google_id', $googleUser->getId())->orWhere('email', $googleUser->getEmail())->first();
+            // Xác minh token Google
+            $client = new \Google\Client();
+            $client->setClientId(env('GOOGLE_CLIENT_ID'));
+            $payload = $client->verifyIdToken($googleToken);
 
-            if ($user) {
-                // Nếu người dùng đã tồn tại, kiểm tra xem mã xác minh có còn hiệu lực không
-                if ($user->verification_code_expires_at && $user->verification_code_expires_at > now()) {
-                    // Nếu mã xác minh còn hiệu lực, đăng nhập người dùng
-                    Auth::login($user);
-                    return redirect()->route('dashboard');  // Chuyển hướng người dùng đến Dashboard
-                } else {
-                    // Nếu mã xác minh hết hạn, tạo lại mã xác minh và gửi email xác nhận
-                    // $verificationCode = Str::random(6);
-                    $user->update([
-                        // 'verification_code' => $verificationCode,
-                        'verification_code_expires_at' => now()->addMinutes(3), // Mã xác minh có thời gian hết hạn mới
-                    ]);
-
-                    // Gửi lại email xác nhận
-                    Mail::to($user->email)->send(new VerifyEmailMail($user));
-
-                    // Chuyển hướng người dùng đến trang yêu cầu xác minh email
-                    return redirect()->route('verification.notice');
-                }
-            } else {
-                // Nếu người dùng chưa tồn tại, tạo người dùng mới với Google
-                $user = User::create([
-                    'fullname' => $googleUser->getName(),
-                    'email' => $googleUser->getEmail(),
-                    'google_id' => $googleUser->getId(),
-                    'password' => bcrypt('randomPassword'), // Tạo mật khẩu mặc định
-                    // 'verification_code' => Str::random(6), // Tạo mã xác minh ngẫu nhiên
-                    'verification_code_expires_at' => now()->addMinutes(3), // Mã xác minh hết hạn sau 10 phút
-                ]);
-
-                // Gửi email xác nhận
-                Mail::to($user->email)->send(new VerifyEmailMail($user));
-
-                // Chuyển hướng người dùng đến trang yêu cầu xác minh email
-                return redirect()->route('verification.notice');
+            if (!$payload) {
+                return response()->json(['message' => 'Invalid Google token'], 400);
             }
 
+            $email = $payload['email'];
+            $fullname = $payload['name'];
+            $googleId = $payload['sub']; // Lấy Google ID từ payload
+
+            // Tìm người dùng trong cơ sở dữ liệu dựa trên email hoặc google_id
+            $user = User::where('email', $email)->orWhere('google_id', $googleId)->first();
+
+            if ($user) {
+                // Cập nhật Google ID nếu chưa có
+                if (!$user->google_id) {
+                    $user->update(['google_id' => $googleId]);
+                }
+
+                // Kiểm tra xem email đã được xác minh chưa
+                if (!$user->email_verified_at) {
+                    // Nếu mã xác minh hết hạn hoặc chưa có, tạo mã mới
+                    if (!$user->verification_code_expires_at || $user->verification_code_expires_at <= now()) {
+                        $user->update([
+                            'verification_code_expires_at' => now()->addMinutes(3),
+                        ]);
+                    }
+
+                    // Gửi email xác nhận
+                    Mail::to($user->email)->send(new VerifyEmailMail($user));
+                    // Lưu email vào session để xử lý khi resend
+                    session(['user_email' => $user->email]);
+
+                    return response()->json([
+                        'message' => 'Please verify your email to continue.',
+                        'status' => 'verification_required',
+                    ]);
+                }
+
+                // Nếu đã xác minh email, đăng nhập người dùng
+                $token = $user->createToken('auth_token')->plainTextToken;
+                return response()->json([
+                    'access_token' => $token,
+                    'message' => 'Login successful',
+                    'status' => 'verified',
+                ]);
+            }
+
+            // Nếu người dùng chưa tồn tại, tạo người dùng mới
+            $user = User::create([
+                'fullname' => $fullname,
+                'email' => $email,
+                'google_id' => $googleId,
+                'password' => Hash::make(Str::random(12)), // Mật khẩu ngẫu nhiên
+                'verification_code_expires_at' => now()->addMinutes(3),
+            ]);
+
+            // Gửi email xác nhận
+            Mail::to($user->email)->send(new VerifyEmailMail($user));
+            // Lưu email vào session để xử lý khi resend
+            session(['user_email' => $user->email]);
+            return response()->json([
+                'message' => 'User created. Please verify your email.',
+                'status' => 'verification_required',
+            ]);
         } catch (\Exception $e) {
-            return redirect('/')->with('error', 'Something went wrong, please try again.');
+            return response()->json(['message' => 'Error processing Google login', 'error' => $e->getMessage()], 500);
         }
     }
+
 
 
 

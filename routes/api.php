@@ -28,6 +28,8 @@ Route::post('/forgot-password/request', [PasswordResetController::class, 'reques
 Route::post('/forgot-password/verify', [PasswordResetController::class, 'verifyCode']);
 Route::post('/forgot-password/reset', [PasswordResetController::class, 'resetPassword']);
 Route::post('/resend-verification-code', [UserController::class, 'resendVerificationCode']);
+Route::post('/auth/google', [UserController::class, 'handleGoogleLogin']);
+
 
 Route::middleware('auth:sanctum')->group(function () {
     //role

@@ -87,7 +87,7 @@
         </div>
         <div class="footer">
             <p>Nếu bạn không đăng ký tài khoản này, vui lòng bỏ qua email này.</p>
-            <img src="https://your-logo-url.com/logo.png" alt="Logo" class="logo">
+            <h2>NHĐT</h2>
         </div>
     </div>
 
