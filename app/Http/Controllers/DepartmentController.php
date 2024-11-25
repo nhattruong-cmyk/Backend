@@ -159,7 +159,6 @@ class DepartmentController extends Controller
                 'message' => 'Department updated successfully.',
                 'department' => $department->load('users')
             ], 200);
-
         } catch (\Illuminate\Validation\ValidationException $e) {
             // Bắt lỗi xác thực và trả về thông báo lỗi
             return response()->json([
@@ -234,36 +233,81 @@ class DepartmentController extends Controller
             }
 
             return response()->json(['message' => 'Users removed from department and notified successfully.'], 200);
-
         } catch (\Exception $e) {
             return response()->json(['error' => 'Failed to remove users from department: ' . $e->getMessage()], 500);
         }
     }
+
     public function destroy($id)
     {
-        $department = Department::find($id);
-
-        if (!$department) {
-            return response()->json(['message' => 'Department not found'], 404);
-        }
-
         try {
-            // Thử xóa phòng ban
+            // Tìm phòng ban theo ID
+            $department = Department::findOrFail($id);
+
+            // Thực hiện xóa mềm
             $department->delete();
 
-            return response()->json(['message' => 'Department deleted successfully']);
+            return response()->json(['message' => 'Department soft deleted successfully'], 200);
         } catch (\Illuminate\Database\QueryException $e) {
-            // Bắt lỗi khóa ngoại
+            // Bắt lỗi khóa ngoại (nếu có)
             if ($e->getCode() === '23000') {
                 return response()->json([
-                    'error' => 'Department cannot be deleted because it is associated with users, projects, or tasks.'
+                    'error' => 'Department cannot be soft deleted because it is associated with users, projects, or tasks.'
                 ], 400);
             }
-
-            // Bắt lỗi khác
-            return response()->json([
-                'error' => 'Failed to delete department: ' . $e->getMessage()
-            ], 500);
+            return response()->json(['error' => 'Failed to soft delete department: ' . $e->getMessage()], 500);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Failed to soft delete department: ' . $e->getMessage()], 500);
         }
     }
+
+
+    public function restore($id)
+    {
+        try {
+            // Tìm phòng ban đã xóa mềm
+            $department = Department::onlyTrashed()->findOrFail($id);
+
+            // Thực hiện khôi phục
+            $department->restore();
+
+            return response()->json(['message' => 'Department restored successfully'], 200);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Failed to restore department: ' . $e->getMessage()], 500);
+        }
+    }
+
+    public function getTrashed()
+    {
+        try {
+            // Lấy danh sách phòng ban đã xóa mềm
+            $trashedDepartments = Department::onlyTrashed()->get();
+
+            if ($trashedDepartments->isEmpty()) {
+                return response()->json(['message' => 'No trashed departments found'], 404);
+            }
+
+            return response()->json(['data' => $trashedDepartments], 200);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Failed to retrieve trashed departments: ' . $e->getMessage()], 500);
+        }
+    }
+
+    public function forceDelete($id)
+    {
+        try {
+            // Tìm phòng ban đã bị xóa mềm
+            $department = Department::onlyTrashed()->findOrFail($id);
+
+            // Thực hiện xóa cứng
+            $department->forceDelete();
+
+            return response()->json(['message' => 'Department permanently deleted successfully'], 200);
+        } catch (\Illuminate\Database\QueryException $e) {
+            return response()->json(['error' => 'Failed to permanently delete department: ' . $e->getMessage()], 500);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Failed to permanently delete department: ' . $e->getMessage()], 500);
+        }
+    }
+    
 }

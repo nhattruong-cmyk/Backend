@@ -76,10 +76,6 @@ class CommentController extends Controller
         ], 201);
     }
 
-
-
-
-
     // Cập nhật bình luận
     public function update(UpdateCommentRequest $request, $id)
     {
@@ -139,7 +135,6 @@ class CommentController extends Controller
         ], 200);
     }
 
-
     // Xóa bình luận
     public function destroy($id)
     {
@@ -174,9 +169,6 @@ class CommentController extends Controller
 
         return response()->json(['message' => 'Bình luận đã được xóa thành công.'], 200);
     }
-
-
-
 
     public function show($id)
     {

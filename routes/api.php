@@ -17,8 +17,6 @@ use App\Http\Controllers\ActivityLogController;
 use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\PasswordResetController;
 
-
-
 Route::post('/register', [UserController::class, 'register']);
 Route::post('/login', [UserController::class, 'login']);
 Route::post('/logout', [UserController::class, 'logout'])->middleware('auth:sanctum');
@@ -29,6 +27,7 @@ Route::post('/forgot-password/verify', [PasswordResetController::class, 'verifyC
 Route::post('/forgot-password/reset', [PasswordResetController::class, 'resetPassword']);
 Route::post('/resend-verification-code', [UserController::class, 'resendVerificationCode']);
 Route::post('/auth/google', [UserController::class, 'handleGoogleLogin']);
+
 
 
 Route::middleware('auth:sanctum')->group(function () {
@@ -56,15 +55,12 @@ Route::middleware('auth:sanctum')->group(function () {
     // API xác nhận xóa tài khoản
     Route::get('/confirm-delete-account/{token}', [UserController::class, 'confirmDeleteAccount']);
 
-
-
     //permission
     Route::get('/permissions', [PermissionController::class, 'index']);
     Route::get('/permissions/{id}', [PermissionController::class, 'show']);
     Route::post('/permissions', [PermissionController::class, 'store']);
     Route::delete('/permissions/{id}', [PermissionController::class, 'destroy']);
     Route::put('/permissions/{id}', [PermissionController::class, 'update']);
-
     Route::post('/permissions/{id}/restore', [PermissionController::class, 'restore']);
     Route::delete('/permissions/{id}/force-delete', [PermissionController::class, 'forceDelete']);
     Route::get('/permissions-trashed', [PermissionController::class, 'trashed']);
@@ -76,8 +72,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('departments/{department_id}/add-user', [DepartmentController::class, 'addUserToDepartment']);
     Route::post('/departments/{department_id}/remove-users', [DepartmentController::class, 'removeUserFromDepartment']);
     Route::put('departments/{department_id}', [DepartmentController::class, 'update']);
-    Route::delete('departments/{department_id}', [DepartmentController::class, 'destroy']);
     Route::post('/departments/{department_id}/add-users', [DepartmentController::class, 'addUsersToDepartment']);
+    Route::delete('departments/{department_id}', [DepartmentController::class, 'destroy']);
+    Route::delete('/departments/{id}/force', [DepartmentController::class, 'forceDelete']);
+    Route::get('/trashed-departments', [DepartmentController::class, 'getTrashed']);
+    Route::put('/departments/{id}/restore', [DepartmentController::class, 'restore']);
 
     // Projects
     Route::get('/projects', [ProjectController::class, 'index']);
@@ -92,6 +91,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/projects/{id}/restore', [ProjectController::class, 'restore']);
 
     // Tasks
+    Route::get('/tasks/without-worktime', [TaskController::class, 'getTaskWithoutWorktime']);
     Route::get('/tasks', [TaskController::class, 'index']);
     Route::get('/tasks/{id}', [TaskController::class, 'show']);
     Route::post('/tasks', [TaskController::class, 'store']);
@@ -99,6 +99,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/tasks/{id}', [TaskController::class, 'destroy']);
     Route::post('/tasks/{task_id}/add-users', [TaskController::class, 'addUsers']); // Thêm nhiều user vào task
     Route::get('/projects/{id}/departments', [TaskController::class, 'getDepartmentsByProjectId']);
+    Route::post('/tasks/{task_id}/update-location', [TaskController::class, 'updateLocationTask']);
+    Route::post('/tasks/move-to-worktime', [TaskController::class, 'moveTasksToAnotherWorktime']);
+    Route::delete('/tasks/{id}/force', [TaskController::class, 'forceDelete']);
+    Route::get('/trashed-tasks', [TaskController::class, 'getTrashed']);
+    Route::put('/tasks/{id}/restore', [TaskController::class, 'restore']);
 
 
     // Assignments
@@ -109,6 +114,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/assignments/{id}', [AssignmentController::class, 'destroy']);
     Route::get('/tasks/{id}/departments', [AssignmentController::class, 'getDepartmentsByTask']);
     Route::get('/departments/{id}/users', [AssignmentController::class, 'getUsersByDepartment']);
+    Route::delete('/assignments/{id}/force', [AssignmentController::class, 'forceDelete']);
+    Route::get('/assignments-trashed', [AssignmentController::class, 'getTrashed']);
+    Route::put('/assignments/{id}/restore', [AssignmentController::class, 'restore']);
+
 
     // Notification
     Route::get('/notifications', [NotificationController::class, 'index']);
@@ -116,19 +125,19 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/notifications', [NotificationController::class, 'store']);
     Route::put('/notifications/{id}/read', [NotificationController::class, 'markAsRead']);
     Route::delete('/notifications/{id}', [NotificationController::class, 'destroy']);
+    Route::delete('/notifications/{id}/force', [NotificationController::class, 'forceDelete']);
+    Route::get('/trashed-notifications', [NotificationController::class, 'getTrashed']);
+    Route::put('/notifications/{id}/restore', [NotificationController::class, 'restore']);
 
     // Files liên kết với task cụ thể
     Route::get('/tasks/{id}/files', [FileController::class, 'getTaskFiles']); // Lấy danh sách file của task cụ thể
     Route::post('tasks/{taskId}/files', [FileController::class, 'uploadFiles'])->name('tasks.files.upload');
     Route::get('files/{fileId}/download', [FileController::class, 'downloadFile'])->name('files.download');
-
     Route::get('/files', [FileController::class, 'index']);
     Route::post('/files', [FileController::class, 'store']);
     Route::get('/files/{id}', [FileController::class, 'show']);
-    Route::delete('/files/{id}', [FileController::class, 'destroy']); // xóa mềm file
+    Route::delete('/files/{id}', [FileController::class, 'destroy']); // xóa file
     Route::put('/files/{id}', [FileController::class, 'update']);
-
-    // Route cho restore và force delete
     Route::post('/files/{id}/restore', [FileController::class, 'restore']); // Khôi phục file đã bị soft delete
     Route::get('/files/trashed', [FileController::class, 'trashed']); // Lấy danh sách file đã bị soft delete
     Route::delete('/files/{id}/force-delete', [FileController::class, 'forceDelete']); // Xóa hoàn toàn file (hard delete)

@@ -9,9 +9,6 @@ use Illuminate\Http\Request;
 
 class NotificationController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
     public function index()
     {
         // Lấy tất cả thông báo của người dùng
@@ -26,9 +23,6 @@ class NotificationController extends Controller
         return response()->json($notifications);
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
     public function store(Request $request)
     {
         // Xác thực dữ liệu đầu vào
@@ -47,9 +41,6 @@ class NotificationController extends Controller
         }
     }
 
-    /**
-     * Display the specified resource.
-     */
     public function show(string $id)
     {
         //
@@ -63,25 +54,68 @@ class NotificationController extends Controller
         return response()->json(['message' => 'Notification marked as read'], 200);
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
     public function update(Request $request, string $id)
     {
         //
     }
 
-    /**
-     * Remove the specified resource from storage.
-     */
     public function destroy(string $id)
     {
-        $notification = Notification::findOrFail($id);
-    
-        // Xóa mềm thông báo
-        $notification->delete();
-    
-        return response()->json(['message' => 'Notification soft deleted'], 200);
+        try {
+            // Tìm notification theo ID
+            $notification = Notification::findOrFail($id);
+
+            // Thực hiện xóa mềm
+            $notification->delete();
+
+            return response()->json(['message' => 'Notification soft deleted'], 200);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Failed to soft delete notification: ' . $e->getMessage()], 500);
+        }
     }
-    
+    public function forceDelete(string $id)
+    {
+        try {
+            // Tìm notification đã bị xóa mềm
+            $notification = Notification::onlyTrashed()->findOrFail($id);
+
+            // Thực hiện xóa cứng
+            $notification->forceDelete();
+
+            return response()->json(['message' => 'Notification permanently deleted'], 200);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Failed to permanently delete notification: ' . $e->getMessage()], 500);
+        }
+    }
+
+    public function getTrashed()
+    {
+        try {
+            // Lấy danh sách thông báo đã xóa mềm
+            $trashedNotifications = Notification::onlyTrashed()->get();
+
+            if ($trashedNotifications->isEmpty()) {
+                return response()->json(['message' => 'No trashed notifications found'], 404);
+            }
+
+            return response()->json(['data' => $trashedNotifications], 200);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Failed to retrieve trashed notifications: ' . $e->getMessage()], 500);
+        }
+    }
+
+    public function restore(string $id)
+    {
+        try {
+            // Tìm notification đã xóa mềm
+            $notification = Notification::onlyTrashed()->findOrFail($id);
+
+            // Khôi phục thông báo
+            $notification->restore();
+
+            return response()->json(['message' => 'Notification restored successfully'], 200);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Failed to restore notification: ' . $e->getMessage()], 500);
+        }
+    }
 }

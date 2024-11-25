@@ -15,7 +15,6 @@ use App\Http\Requests\UpdateUserRequest;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 
-
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
 
@@ -29,11 +28,13 @@ use App\Mail\AccountDeleted;
 use App\Mail\DeleteAccountConfirmation;
 
 use App\Services\MailchimpService;
-
 use App\Services\TwilioService;
 use Illuminate\Support\Facades\DB;
 use Laravel\Socialite\Facades\Socialite;
 use Google\Client;
+use Illuminate\Support\Facades\Http;
+use Firebase\JWT\JWT;
+use Firebase\JWT\Key;
 
 class UserController extends Controller
 {
@@ -544,7 +545,6 @@ class UserController extends Controller
         ], 201);
     }
 
-
     // Đăng nhập người dùng
     public function login(Request $request)
     {
@@ -646,7 +646,7 @@ class UserController extends Controller
         $user->update([
             'verification_code_expires_at' => now()->addMinutes(3),
         ]);
-        
+
         // Gửi lại email xác nhận với mã mới
         Mail::to($user->email)->send(new VerifyEmailMail($user));
 
@@ -735,6 +735,5 @@ class UserController extends Controller
     }
 
 
-
-
+    
 }

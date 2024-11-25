@@ -110,6 +110,8 @@ class AssignmentController extends Controller
                         'task_id' => $validatedData['task_id'],
                         'user_id' => $user_id,
                         'department_id' => $validatedData['department_id'],
+                        'status' => $validatedData['status'],
+                        'note' => $validatedData['note'],
                     ]);
 
                     // Cập nhật bảng `task_user`
@@ -149,9 +151,6 @@ class AssignmentController extends Controller
             return response()->json(['error' => 'Failed to assign users to task: ' . $e->getMessage()], 500);
         }
     }
-
-
-
 
     public function update(UpdateAssignmentRequest $request, $id)
     {
@@ -217,6 +216,37 @@ class AssignmentController extends Controller
             return response()->json(['message' => 'Assignment soft deleted successfully'], 200);
         } catch (\Exception $e) {
             return response()->json(['error' => 'Failed to delete assignment: ' . $e->getMessage()], 500);
+        }
+    }
+
+    public function getTrashed()
+    {
+        try {
+            // Lấy danh sách assignment đã xóa mềm
+            $trashedAssignments = Assignment::onlyTrashed()->get();
+
+            if ($trashedAssignments->isEmpty()) {
+                return response()->json(['message' => 'No trashed assignments found'], 404);
+            }
+
+            return response()->json(['data' => $trashedAssignments], 200);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Failed to retrieve trashed assignments: ' . $e->getMessage()], 500);
+        }
+    }
+
+    public function restore($id)
+    {
+        try {
+            // Tìm assignment đã xóa mềm
+            $assignment = Assignment::onlyTrashed()->findOrFail($id);
+
+            // Khôi phục assignment
+            $assignment->restore();
+
+            return response()->json(['message' => 'Assignment restored successfully'], 200);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Failed to restore assignment: ' . $e->getMessage()], 500);
         }
     }
 }
