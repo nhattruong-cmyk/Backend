@@ -10,9 +10,8 @@ use App\Models\Permission;
 
 class RoleController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
+
+    // lấy danh sách role
     public function index(Request $request)
     {
         $user = $request->user();
@@ -29,9 +28,7 @@ class RoleController extends Controller
         return response()->json($roles);
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
+    // tạo role
     public function store(StoreRoleRequest $request)
     {
         // Chỉ cho phép Admin thêm vai trò
@@ -60,9 +57,7 @@ class RoleController extends Controller
 
         return response()->json($role->load('permissions'), 201);
     }
-    /**
-     * Display the specified resource.
-     */
+    // chi tiết role
     public function show(Request $request, $id)
     {
         // Lấy người dùng hiện tại từ request
@@ -84,9 +79,7 @@ class RoleController extends Controller
         // Nếu người dùng là admin và role tồn tại, trả về thông tin của role
         return response()->json($role);
     }
-    /**
-     * Update the specified resource in storage.
-     */
+    // cập nhật role
     public function update(UpdateRoleRequest $request, $id)
     {
         // Chỉ cho phép Admin sửa vai trò
@@ -127,10 +120,7 @@ class RoleController extends Controller
 
         return response()->json($role->load('permissions')); // Trả về thông tin vai trò cùng quyền đã gán
     }
-
-    /**
-     * Remove the specified resource from storage.
-     */
+    // xóa mềm role
     public function destroy(Request $request, $id)
     {
         // Chỉ cho phép Admin xóa vai trò
@@ -215,10 +205,5 @@ class RoleController extends Controller
             'message' => 'Permissions removed successfully'
         ]);
     }
-
-
-
-
-
 
 }

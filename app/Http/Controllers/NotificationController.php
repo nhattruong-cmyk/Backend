@@ -9,6 +9,7 @@ use Illuminate\Http\Request;
 
 class NotificationController extends Controller
 {
+    // lấy danh sách thông báo
     public function index()
     {
         // Lấy tất cả thông báo của người dùng
@@ -23,6 +24,7 @@ class NotificationController extends Controller
         return response()->json($notifications);
     }
 
+    // tạo mới 1 thông báo
     public function store(Request $request)
     {
         // Xác thực dữ liệu đầu vào
@@ -41,11 +43,13 @@ class NotificationController extends Controller
         }
     }
 
+    // lấy thôg tin 1 thông báo
     public function show(string $id)
     {
         //
     }
 
+    // xát nhận tài khoản đã đọc thông báo
     public function markAsRead($id)
     {
         $notification = Notification::findOrFail($id);
@@ -54,11 +58,13 @@ class NotificationController extends Controller
         return response()->json(['message' => 'Notification marked as read'], 200);
     }
 
+    // cập nhật thông tin thôg báo
     public function update(Request $request, string $id)
     {
         //
     }
 
+    // hủy diệt một thông bá (xóa mềm)
     public function destroy(string $id)
     {
         try {
@@ -73,6 +79,8 @@ class NotificationController extends Controller
             return response()->json(['error' => 'Failed to soft delete notification: ' . $e->getMessage()], 500);
         }
     }
+
+    // xóa cứng thông báo đã xóa mềm
     public function forceDelete(string $id)
     {
         try {
@@ -88,6 +96,7 @@ class NotificationController extends Controller
         }
     }
 
+    // lấy dánh sách thông báo đã xóa mềm
     public function getTrashed()
     {
         try {
@@ -104,6 +113,7 @@ class NotificationController extends Controller
         }
     }
 
+    // phục hồi thông báo đã xóa mềm
     public function restore(string $id)
     {
         try {

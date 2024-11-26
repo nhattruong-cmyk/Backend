@@ -127,7 +127,6 @@ class WorktimesController extends Controller
         $trashedWorktimes = Worktimes::onlyTrashed()->get();
         return response()->json($trashedWorktimes);
     }
-
     public function forceDestroy($id)
     {
         try {

@@ -16,30 +16,27 @@ use Illuminate\Support\Facades\Auth;
 
 class ProjectController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
+
+    // lấy danh sách project
     public function index()
     {
         $projects = Project::with(['user', 'departments'])->get();
         return response()->json($projects);
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
+    // tạo mới dự án
     public function store(StoreProjectRequest $request)
     {
         try {
             // Lấy dữ liệu đã xác thực từ StoreProjectRequest
             $validatedData = $request->validated();
-    
+
             // Thêm user_id của người đăng nhập vào dữ liệu được xác thực
             $validatedData['user_id'] = Auth::id();
-    
+
             // Tạo dự án mới với dữ liệu đã xác thực và user_id
             $project = Project::create($validatedData);
-    
+
             // Ghi lại lịch sử hoạt động sau khi tạo project thành công
             ActivityLog::create([
                 'user_id' => Auth::id(), // ID của người thực hiện hành động
@@ -48,7 +45,7 @@ class ProjectController extends Controller
                 'action' => 'created', // Hành động là tạo mới
                 'changes' => json_encode($validatedData), // Lưu lại dữ liệu vừa được tạo
             ]);
-    
+
             // Trả về phản hồi JSON với dữ liệu dự án đã tạo
             return response()->json([
                 'message' => 'Project created successfully',
@@ -60,36 +57,30 @@ class ProjectController extends Controller
         }
     }
 
-
-
-    /**
-     * Display the specified resource.
-     */
+    // hiển thị chi tiết 1 dự án
     public function show($id)
     {
         $project = Project::with(['user', 'departments'])->findOrFail($id);
         return response()->json($project);
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
+    // cập nhật dự án
     public function update(UpdateProjectRequest $request, string $id)
     {
         // Tìm dự án cần cập nhật
         $project = Project::findOrFail($id);
-    
+
         try {
             // Lấy dữ liệu cũ để ghi lại sự thay đổi
             $originalData = $project->getOriginal();
-    
+
             // Lấy dữ liệu đã xác thực, nhưng loại bỏ `user_id` để không cho phép cập nhật
             $validatedData = $request->validated();
             unset($validatedData['user_id']); // Loại bỏ `user_id` khỏi dữ liệu cập nhật
-    
+
             // Cập nhật các thông tin của dự án, bỏ qua `user_id`
             $project->update($validatedData);
-    
+
             // Ghi lại lịch sử hoạt động sau khi cập nhật project thành công
             ActivityLog::create([
                 'user_id' => Auth::id(), // ID của người thực hiện hành động
@@ -101,7 +92,7 @@ class ProjectController extends Controller
                     'after' => $project->getChanges() // Dữ liệu sau khi cập nhật
                 ]),
             ]);
-    
+
             // Trả về phản hồi JSON với thông tin dự án đã được cập nhật
             return response()->json([
                 'message' => 'Project updated successfully',
@@ -112,7 +103,7 @@ class ProjectController extends Controller
         }
     }
 
-
+    // thêm phòng ban vào dự án
     public function addDepartmentToProject(Request $request, string $project_id)
     {
         // Tìm dự án theo ID
@@ -164,7 +155,7 @@ class ProjectController extends Controller
         }
     }
 
-
+    // xóa phòng ban khỏi dự án
     public function removeDepartmentFromProject(Request $request, string $project_id)
     {
         // Tìm dự án theo ID
@@ -215,27 +206,25 @@ class ProjectController extends Controller
         }
     }
 
-    /**
-     * Remove the specified resource from storage.
-     */
+    // xóa mềm project
     public function destroy($id)
     {
         try {
             // Tìm Project theo ID
             $project = Project::findOrFail($id);
-    
+
             // Kiểm tra xem project có liên kết với departments hay không
             $departmentsCount = $project->departments()->count(); // Đếm số lượng departments liên quan
-    
+
             if ($departmentsCount > 0) {
                 return response()->json([
                     'error' => 'Cannot delete project because it is associated with departments.'
                 ], 400); // 400 Bad Request
             }
-    
+
             // Xóa mềm (soft delete)
             $project->delete();
-    
+
             return response()->json([
                 'message' => 'Project soft deleted successfully',
             ], 200);
@@ -250,6 +239,7 @@ class ProjectController extends Controller
         }
     }
 
+    // khôi phục project đã xóa mềm
     public function restore($id)
     {
         try {
@@ -274,6 +264,7 @@ class ProjectController extends Controller
         }
     }
 
+    // lấy danh sách dự án đã xóa mềm
     public function trashedProjects()
     {
         try {
@@ -291,6 +282,35 @@ class ProjectController extends Controller
         }
     }
 
+    // xóa cứng project
+    public function forceDelete($id)
+    {
+        try {
+            // Tìm dự án đã bị xóa mềm
+            $project = Project::onlyTrashed()->findOrFail($id);
 
+            // Kiểm tra xem dự án có liên kết với departments hay không
+            $departmentsCount = $project->departments()->count();
+            if ($departmentsCount > 0) {
+                return response()->json([
+                    'error' => 'Cannot permanently delete project because it is still associated with departments.'
+                ], 400); // 400 Bad Request
+            }
 
+            // Thực hiện xóa cứng
+            $project->forceDelete();
+
+            return response()->json([
+                'message' => 'Project permanently deleted successfully.',
+            ], 200);
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json([
+                'error' => 'Project not found or not trashed.'
+            ], 404); // 404 Not Found
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Failed to permanently delete project: ' . $e->getMessage()
+            ], 500); // 500 Internal Server Error
+        }
+    }
 }

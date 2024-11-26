@@ -16,6 +16,8 @@ use App\Http\Controllers\WorktimesController;
 use App\Http\Controllers\ActivityLogController;
 use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\PasswordResetController;
+use App\Http\Controllers\DashboardController;
+
 
 Route::post('/register', [UserController::class, 'register']);
 Route::post('/login', [UserController::class, 'login']);
@@ -31,6 +33,9 @@ Route::post('/auth/google', [UserController::class, 'handleGoogleLogin']);
 
 
 Route::middleware('auth:sanctum')->group(function () {
+
+    Route::get('/dashboard', [DashboardController::class, 'index']);
+
     //role
     Route::get('/roles', [RoleController::class, 'index']);
     Route::get('/roles/{id}', [RoleController::class, 'show']);
@@ -89,6 +94,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/projects/{project_id}/remove-departments', [ProjectController::class, 'removeDepartmentFromProject']);
     Route::get('/projects-trashed', [ProjectController::class, 'trashedProjects']);
     Route::post('/projects/{id}/restore', [ProjectController::class, 'restore']);
+    Route::delete('/projects/{id}/force', [ProjectController::class, 'forceDelete']);
 
     // Tasks
     Route::get('/tasks/without-worktime', [TaskController::class, 'getTaskWithoutWorktime']);
@@ -104,6 +110,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/tasks/{id}/force', [TaskController::class, 'forceDelete']);
     Route::get('/trashed-tasks', [TaskController::class, 'getTrashed']);
     Route::put('/tasks/{id}/restore', [TaskController::class, 'restore']);
+    Route::get('/tasks/worktimes/{worktime_id}', [TaskController::class, 'getTasksByWorktimeId']);
+
 
 
     // Assignments

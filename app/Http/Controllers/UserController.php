@@ -14,19 +14,14 @@ use App\Http\Requests\StoreUserRequest;
 use App\Http\Requests\UpdateUserRequest;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
-
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
-
 use Illuminate\Support\Facades\Mail;
-
 use Illuminate\Support\Str;
 use App\Mail\VerifyEmailMail;
 use Illuminate\Auth\Events\Verified;
 use App\Mail\AccountDeleted;
-
 use App\Mail\DeleteAccountConfirmation;
-
 use App\Services\MailchimpService;
 use App\Services\TwilioService;
 use Illuminate\Support\Facades\DB;
@@ -368,7 +363,7 @@ class UserController extends Controller
         return response()->json(['message' => 'No avatar file provided'], 400);
     }
 
-    // Xóa người dùng
+    // Xóa người dùng (mềm)
     public function destroy(Request $request, $id)
     {
         $user = $request->user();
@@ -429,6 +424,7 @@ class UserController extends Controller
         return response()->json(['message' => 'Unauthorized'], 403);
     }
 
+    // xóa vĩnh viễn người dùng
     public function forceDestroy(Request $request, $id)
     {
         $requestedUser = User::withTrashed()->find($id);
@@ -488,6 +484,7 @@ class UserController extends Controller
         }
     }
 
+    // khôi phục người dùng đã xóa mềm
     public function restore($id)
     {
         $requestedUser = User::withTrashed()->find($id);
@@ -502,12 +499,13 @@ class UserController extends Controller
         return response()->json(['message' => 'User restored successfully']);
     }
 
+    // lấy danh sách người dùng đã bị xóa mềm
     public function trashedUsers()
     {
         $trashedUsers = User::onlyTrashed()->get();
         return response()->json($trashedUsers);
     }
-    // Đăng ký người dùng
+    // Đăng ký
     public function register(StoreUserRequest $request)
     {
         // // Tạo mã xác nhận ngẫu nhiên
@@ -545,7 +543,7 @@ class UserController extends Controller
         ], 201);
     }
 
-    // Đăng nhập người dùng
+    // Đăng nhập
     public function login(Request $request)
     {
         $validator = Validator::make($request->all(), [
@@ -597,7 +595,7 @@ class UserController extends Controller
         ]);
     }
 
-    // Đăng xuất người dùng
+    // Đăng xuất
     public function logout(Request $request)
     {
         $request->user()->tokens()->delete();

@@ -21,12 +21,14 @@ use Illuminate\Http\Request;
 class TaskController extends Controller
 {
 
+    // lấy danh sách Task
     public function index()
     {
         $tasks = Task::with('projects', 'departments', 'files')->get();
         return response()->json($tasks, 200);
     }
 
+    // tạo mới task
     public function store(StoreTaskRequest $request)
     {
         try {
@@ -100,6 +102,7 @@ class TaskController extends Controller
         }
     }
 
+    // xem thôg tin task
     public function show($task_id)
     {
         // Tải trước mối quan hệ project và departments của project
@@ -110,6 +113,7 @@ class TaskController extends Controller
         return response()->json($task, 200);
     }
 
+    // cập nhật task
     public function update(UpdateTaskRequest $request, $task_id)
     {
         // Tìm task theo ID và lấy cả các projects liên kết
@@ -204,6 +208,7 @@ class TaskController extends Controller
         }
     }
 
+    // lấy danh sách phòng ban theo project
     public function getDepartmentsByProjectId($project_id)
     {
         try {
@@ -224,12 +229,14 @@ class TaskController extends Controller
         }
     }
 
+    // lấy danh sách task không có worktime
     public function getTaskWithoutWorktime()
     {
         $tasks = Task::with('projects', 'departments', 'files')->whereNull('worktime_id')->get();
         return response()->json($tasks, 200);
     }
 
+    // cập nhật vị trí task
     public function updateLocationTask(Request $request, $task_id)
     {
         try {
@@ -283,6 +290,7 @@ class TaskController extends Controller
         }
     }
 
+    // di chuyển task
     public function moveTasksToAnotherWorktime()
     {
         try {
@@ -348,6 +356,7 @@ class TaskController extends Controller
         }
     }
 
+    // xóa mềm task
     public function destroy($id)
     {
         try {
@@ -363,6 +372,7 @@ class TaskController extends Controller
         }
     }
 
+    // khôi phục task đã xóa mềm
     public function restore($id)
     {
         try {
@@ -378,6 +388,7 @@ class TaskController extends Controller
         }
     }
 
+    // lấy danh sách task đã xóa mềm
     public function getTrashed()
     {
         try {
@@ -394,6 +405,7 @@ class TaskController extends Controller
         }
     }
 
+    // xóa cứng task
     public function forceDelete($id)
     {
         try {
@@ -407,5 +419,26 @@ class TaskController extends Controller
         } catch (\Exception $e) {
             return response()->json(['error' => 'Failed to permanently delete task: ' . $e->getMessage()], 500);
         }
+    }
+
+    public function getTasksByWorktimeId($id)
+    {
+        // Lấy các task có worktime_id tương ứng
+        $tasks = Task::where('worktime_id', $id)
+            ->with('assignments') // Tải các assignment liên quan đến task (nếu có)
+            ->get();
+
+        // Kiểm tra xem có task nào không
+        if ($tasks->isEmpty()) {
+            return response()->json([
+                'message' => 'No tasks found for this worktime_id.',
+            ], 404);
+        }
+
+        // Trả về danh sách các task
+        return response()->json([
+            'worktime_id' => $id,
+            'tasks' => $tasks,
+        ], 200);
     }
 }

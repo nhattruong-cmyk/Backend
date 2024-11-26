@@ -69,8 +69,7 @@ class PasswordResetController extends Controller
             'contact' => $user->phone_number,  // Hoặc có thể gửi về email nếu cần
         ]);
     }
-
-
+    
     public function verifyCode(Request $request)
     {
         $request->validate([

@@ -14,14 +14,13 @@ use Illuminate\Support\Facades\Log;
 
 class FileController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
+
     public function index()
     {
         $files = File::all();
         return response()->json($files, 200);
     }
+
     public function getTaskFiles($taskId)
     {
         // Lấy các file dựa vào task_id
@@ -29,10 +28,6 @@ class FileController extends Controller
         return response()->json($files, 200);
     }
 
-
-    /**
-     * Store a newly created resource in storage.
-     */
     public function store(StoreFileRequest $request, $taskId)
     {
         Log::info('Request received for file upload', ['task_id' => $taskId]);
@@ -60,7 +55,6 @@ class FileController extends Controller
             return response()->json(['success' => false, 'message' => 'File upload failed: ' . $e->getMessage()], 500);
         }
     }
-
 
     public function uploadFiles(UpdateFileRequest $request, $taskId)
     {
@@ -100,7 +94,6 @@ class FileController extends Controller
         ], 201);
     }
 
-
     // FileController.php
     public function downloadFile($fileId)
     {
@@ -113,18 +106,12 @@ class FileController extends Controller
         return Storage::disk('public')->download($file->file_path, $file->file_name);
     }
 
-    /**
-     * Display the specified resource.
-     */
     public function show($id)
     {
         $file = File::findOrFail($id);
         return response()->json($file, 200);
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
     public function update(Request $request, $id)
     {
         $file = File::findOrFail($id);
@@ -150,11 +137,6 @@ class FileController extends Controller
         return response()->json(['message' => 'File updated successfully!', 'file' => $file], 200);
     }
 
-
-
-    /**
-     * Remove the specified resource from storage.
-     */
     public function destroy($id)
     {
         $file = File::findOrFail($id);
@@ -169,8 +151,6 @@ class FileController extends Controller
 
         return response()->json(['message' => 'File deleted successfully'], 200);
     }
-
-
 
     public function restore($id)
     {
@@ -190,7 +170,6 @@ class FileController extends Controller
 
         return response()->json($trashedFiles, 200);
     }
-
 
     public function forceDelete($id)
     {

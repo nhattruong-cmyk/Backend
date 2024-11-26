@@ -15,7 +15,7 @@ class ActivityLogController extends Controller
         // Trả về dữ liệu dưới dạng JSON (hoặc bạn có thể truyền sang view nếu muốn)
         return response()->json($logs);
     }
-    // Phương thức lấy lịch sử thao tác của một user cụ thể
+    // Lấy lịch sử thao tác của một user cụ thể
     public function getUserLogs($userId)
     {
         // Lấy tất cả các bản ghi của một người dùng

@@ -9,9 +9,8 @@ use Illuminate\Http\Request;
 
 class PermissionController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
+
+    // lấy danh sách Permission
     public function index()
     {
         $permissions = Permission::with('children')->whereNull('parent_id')->get();
@@ -19,10 +18,7 @@ class PermissionController extends Controller
         return response()->json($permissions);
     }
 
-
-    /**
-     * Store a newly created resource in storage.
-     */
+    // tạo mới một Permission
     public function store(StorePermissionRequest $request)
     {
         if (!$request->user()->hasRole('Admin')) {
@@ -38,9 +34,7 @@ class PermissionController extends Controller
         return response()->json($permission, 201);
     }
 
-    /**
-     * Display the specified resource.
-     */
+    // xem thông tin 1 Permission
     public function show($id)
     {
         $permission = Permission::with('children')->find($id);
@@ -52,9 +46,7 @@ class PermissionController extends Controller
         return response()->json($permission);
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
+    // cập nhật thôg tin Permission
     public function update(UpdatePermissionRequest $request, $id)
     {
         // Chỉ cho phép Admin sửa vai trò
@@ -90,9 +82,8 @@ class PermissionController extends Controller
 
         return response()->json($permission, 200); // Trả về quyền đã được cập nhật
     }
-    /**
-     * Remove the specified resource from storage.
-     */
+
+    // xóa mềm Permission
     public function destroy(Request $request, $id)
     {
         // Chỉ cho phép Admin xóa quyền
@@ -127,9 +118,8 @@ class PermissionController extends Controller
         $permission->delete();
         return response()->json(['message' => 'Permission deleted successfully']);
     }
-    /**
-     * Khôi phục một permission đã xóa mềm.
-     */
+
+    // Khôi phục 1 Permission đã xóa mềm
     public function restore($id)
     {
         // Chỉ cho phép Admin khôi phục quyền
@@ -154,6 +144,8 @@ class PermissionController extends Controller
         }
         return response()->json(['message' => 'Permission restored successfully']);
     }
+
+    // lấy danh sách các Permission đã được xóa mềm
     public function trashed()
     {
         // Lấy tất cả các permission đã bị xóa mềm
@@ -162,9 +154,7 @@ class PermissionController extends Controller
         return response()->json($trashedPermissions);
     }
 
-    /**
-     * Xóa hoàn toàn một permission.
-     */
+    // xóa cứng
     public function forceDelete($id)
     {
         // Chỉ cho phép Admin xóa hoàn toàn quyền
@@ -185,5 +175,4 @@ class PermissionController extends Controller
 
         return response()->json(['message' => 'Permission permanently deleted']);
     }
-
 }
