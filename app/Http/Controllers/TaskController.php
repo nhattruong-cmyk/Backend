@@ -421,24 +421,81 @@ class TaskController extends Controller
         }
     }
 
-    public function getTasksByWorktimeId($id)
+    // lấy danh sách task từ worktime_id
+    public function getTasksByWorktimeId($id = null)
     {
-        // Lấy các task có worktime_id tương ứng
+        if (is_null($id)) {
+            return response()->json([
+                'message' => 'No worktime_id provided.',
+                'tasks' => [],
+            ], 200);
+        }
+
         $tasks = Task::where('worktime_id', $id)
-            ->with('assignments') // Tải các assignment liên quan đến task (nếu có)
+            ->with('assignments')
             ->get();
 
-        // Kiểm tra xem có task nào không
         if ($tasks->isEmpty()) {
             return response()->json([
                 'message' => 'No tasks found for this worktime_id.',
-            ], 404);
+                'tasks' => [],
+            ], 200);
         }
 
-        // Trả về danh sách các task
         return response()->json([
             'worktime_id' => $id,
             'tasks' => $tasks,
         ], 200);
+    }
+
+    // cập nhật worktime_id (có thêr rõng)
+    public function updateWorktimeId(Request $request, $task_id)
+    {
+        try {
+            // Xác thực dữ liệu đầu vào
+            $request->validate([
+                'worktime_id' => 'nullable|exists:worktimes,id', // Cho phép null hoặc phải tồn tại trong bảng worktimes
+            ]);
+
+            // Tìm task theo ID
+            $task = Task::findOrFail($task_id);
+
+            // Lưu giá trị worktime_id cũ để ghi lịch sử nếu cần
+            $oldWorktimeId = $task->worktime_id;
+
+            // Cập nhật worktime_id mới (cho phép null)
+            $task->update(['worktime_id' => $request->input('worktime_id')]);
+
+            // Ghi lại lịch sử nếu cần
+            ActivityLog::create([
+                'user_id' => Auth::id(),
+                'loggable_id' => $task->id,
+                'loggable_type' => 'App\Models\Task',
+                'action' => 'updated',
+                'changes' => json_encode([
+                    'worktime_id' => [
+                        'old' => $oldWorktimeId,
+                        'new' => $request->input('worktime_id'),
+                    ],
+                ]),
+            ]);
+
+            // Trả về thông báo thành công
+            return response()->json([
+                'message' => 'Worktime updated successfully for task.',
+                'task' => $task,
+            ], 200);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            // Trả về lỗi xác thực
+            return response()->json([
+                'error' => 'Validation error.',
+                'details' => $e->errors(),
+            ], 422);
+        } catch (\Exception $e) {
+            // Trả về lỗi hệ thống
+            return response()->json([
+                'error' => 'Failed to update worktime_id: ' . $e->getMessage(),
+            ], 500);
+        }
     }
 }

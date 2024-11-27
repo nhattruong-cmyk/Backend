@@ -66,8 +66,8 @@ class UpdateTaskRequest extends FormRequest
             ],
             'project_id' => 'sometimes|required|exists:projects,id',
             'department_id' => 'sometimes|integer',  // Kiểm tra bằng tay ở Controller
-            'worktime_id' => 'sometimes|required|exists:worktimes,id', // Ràng buộc khóa ngoại tới worktimes
-            'location_task' => 'sometimes|required|integer|in:0,1,2', // Giá trị vị trí 0,1,2
+            'worktime_id' => 'sometimes|nullable|exists:worktimes,id', // Ràng buộc khóa ngoại tới worktimes
+            'location_task' => 'sometimes|nullable|integer|in:0,1,2', // Giá trị vị trí 0,1,2
             'files.*' => 'nullable|file|mimes:jpg,png,pdf,doc,docx,zip|max:20480',
             'delete_file_ids' => 'nullable|array',
             'delete_file_ids.*' => 'exists:files,id',
@@ -87,9 +87,9 @@ class UpdateTaskRequest extends FormRequest
             'project_id.exists' => 'Dự án không tồn tại.',
             'department_id.required' => 'Phòng ban là bắt buộc.',
             'department_id.integer' => 'Phòng ban phải là số nguyên.',
-            'worktime_id.required' => 'Worktime là bắt buộc.',
-            'worktime_id.exists' => 'Worktime không tồn tại.',
-            'location_task.required' => 'Vị trí nhiệm vụ là bắt buộc.',
+            // 'worktime_id.required' => 'Worktime là bắt buộc.',
+            // 'worktime_id.exists' => 'Worktime không tồn tại.',
+            // 'location_task.required' => 'Vị trí nhiệm vụ là bắt buộc.',
             'location_task.integer' => 'Vị trí nhiệm vụ phải là một số nguyên.',
             'location_task.in' => 'Vị trí nhiệm vụ phải là một trong các giá trị: 0, 1, hoặc 2.',
             'files.*.mimes' => 'Định dạng file phải là jpg, png, pdf, doc, docx, zip.',

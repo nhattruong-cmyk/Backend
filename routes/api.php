@@ -111,7 +111,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/trashed-tasks', [TaskController::class, 'getTrashed']);
     Route::put('/tasks/{id}/restore', [TaskController::class, 'restore']);
     Route::get('/tasks/worktimes/{worktime_id}', [TaskController::class, 'getTasksByWorktimeId']);
-
+    Route::patch('/tasks/{task_id}/worktime', [TaskController::class, 'updateWorktimeTask']);
 
 
     // Assignments

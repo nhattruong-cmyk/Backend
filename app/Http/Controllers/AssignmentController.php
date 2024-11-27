@@ -7,11 +7,13 @@ use App\Models\Department;
 use App\Models\User;
 use App\Models\Task;
 use App\Models\Notification;
-
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Log;
+use App\Mail\TaskAssignedMail;
 use App\Http\Requests\StoreAssignmentRequest;
 use App\Http\Requests\UpdateAssignmentRequest;
 use Illuminate\Http\Request;
-
+use Newsletter;
 use Illuminate\Support\Facades\DB;
 
 class AssignmentController extends Controller
@@ -65,92 +67,87 @@ class AssignmentController extends Controller
         }
     }
 
-    public function store(StoreAssignmentRequest $request)
+    public function store(Request $request)
     {
         try {
-            // Lấy dữ liệu đã xác thực từ StoreAssignmentRequest
-            $validatedData = $request->validated();
+            // Lấy và xác thực dữ liệu từ request
+            $validatedData = $request->validate([
+                'task_id' => 'required|exists:tasks,id',
+                'department_id' => 'required|exists:departments,id',
+                'user_ids' => 'required|array',
+                'user_ids.*' => 'exists:users,id',
+                'note' => 'nullable|string',
+            ]);
 
-            // Kiểm tra department có thuộc task không
-            $task = Task::with('departments')->findOrFail($validatedData['task_id']);
-            if (!$task->departments->contains($validatedData['department_id'])) {
-                return response()->json(['error' => 'The department is not part of the task'], 400);
-            }
+            // Lấy thông tin task
+            $task = Task::findOrFail($validatedData['task_id']);
 
-            // Lấy danh sách người dùng thuộc phòng ban cụ thể
+            // Lấy danh sách user hợp lệ trong phòng ban
             $validUsersInDepartment = DB::table('department_user')
                 ->where('department_id', $validatedData['department_id'])
                 ->pluck('user_id')
                 ->toArray();
 
-            // Lưu danh sách user không thuộc phòng ban và user đã được gán nhiệm vụ
             $invalidDepartmentUsers = [];
-            $duplicateUsers = [];
+            $assignedUsers = [];
 
-            // Lặp qua danh sách user_ids và kiểm tra trùng lặp và người dùng không hợp lệ
             foreach ($validatedData['user_ids'] as $user_id) {
+                // Kiểm tra người dùng có thuộc phòng ban không
                 if (!in_array($user_id, $validUsersInDepartment)) {
-                    // Người dùng không thuộc phòng ban
                     $invalidDepartmentUsers[] = $user_id;
                     continue;
                 }
 
-                // Kiểm tra trùng lặp assignment
-                $existingAssignment = Assignment::where('task_id', $validatedData['task_id'])
+                // Kiểm tra người dùng đã được phân công chưa
+                $existingAssignment = Assignment::where('task_id', $task->id)
                     ->where('user_id', $user_id)
                     ->where('department_id', $validatedData['department_id'])
-                    ->first();
+                    ->exists();
 
                 if ($existingAssignment) {
-                    // Người dùng đã được gán nhiệm vụ này
-                    $duplicateUsers[] = $user_id;
-                } else {
-                    // Tạo assignment mới nếu chưa tồn tại và hợp lệ
-                    Assignment::create([
-                        'task_id' => $validatedData['task_id'],
-                        'user_id' => $user_id,
-                        'department_id' => $validatedData['department_id'],
-                        'status' => $validatedData['status'],
-                        'note' => $validatedData['note'],
-                    ]);
-
-                    // Cập nhật bảng `task_user`
-                    $task->users()->attach($user_id);
-
-                    // Tạo thông báo cho user
-                    Notification::create([
-                        'user_id' => $user_id,
-                        'message' => 'You have been assigned a new task: ' . $task->task_name,
-                    ]);
+                    continue;
                 }
+
+                // Tạo phân công mới
+                Assignment::create([
+                    'task_id' => $task->id,
+                    'user_id' => $user_id,
+                    'department_id' => $validatedData['department_id'],
+                    'note' => $validatedData['note'] ?? '',
+                    'status' => 'assigned', // Hoặc trạng thái khác nếu cần
+                ]);
+
+                // Gửi email thông báo xác nhận
+                $user = User::find($user_id);
+
+                if ($user && $user->email) {
+                    try {
+                        Mail::to($user->email)->send(new TaskAssignedMail($task, $note ?? 'No notes available'));
+
+                    } catch (\Exception $e) {
+                        Log::error("Failed to send email to user {$user->email}: " . $e->getMessage());
+                    }
+                }
+
+                // Ghi nhận người dùng đã được phân công
+                $assignedUsers[] = $user_id;
             }
 
-            // Trả về thông báo lỗi nếu có user không hợp lệ hoặc trùng lặp
-            if (!empty($invalidDepartmentUsers) || !empty($duplicateUsers)) {
-                $errorMessages = [];
-
-                // Thông báo lỗi cho các user không thuộc phòng ban
-                if (!empty($invalidDepartmentUsers)) {
-                    $invalidUserNames = User::whereIn('id', $invalidDepartmentUsers)->pluck('name')->toArray();
-                    $errorMessages[] = 'The following users are not part of the department: ' . implode(', ', $invalidUserNames);
-                }
-
-                // Thông báo lỗi cho các user đã được gán nhiệm vụ
-                if (!empty($duplicateUsers)) {
-                    $duplicateUserNames = User::whereIn('id', $duplicateUsers)->pluck('name')->toArray();
-                    $errorMessages[] = 'The following users are already assigned to this task: ' . implode(', ', $duplicateUserNames);
-                }
-
-                return response()->json(['error' => implode(' | ', $errorMessages)], 400);
-            }
-
-            // Trả về thông báo thành công
-            return response()->json(['message' => 'Users assigned to task successfully'], 201);
+            // Gửi phản hồi thành công với danh sách người dùng được phân công
+            return response()->json([
+                'message' => 'Task assigned successfully',
+                'task' => $task,
+                'assigned_users' => User::whereIn('id', $assignedUsers)->get(),
+                'invalid_users' => User::whereIn('id', $invalidDepartmentUsers)->get(),
+            ], 201);
         } catch (\Exception $e) {
-            // Xử lý lỗi ngoại lệ
-            return response()->json(['error' => 'Failed to assign users to task: ' . $e->getMessage()], 500);
+            // Trả về lỗi nếu có ngoại lệ
+            return response()->json(['error' => 'Failed to assign task: ' . $e->getMessage()], 500);
         }
     }
+
+
+
 
     public function update(UpdateAssignmentRequest $request, $id)
     {
