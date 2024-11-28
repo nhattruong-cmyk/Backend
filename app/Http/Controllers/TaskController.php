@@ -448,13 +448,13 @@ class TaskController extends Controller
         ], 200);
     }
 
-    // cập nhật worktime_id (có thêr rõng)
+    // cập nhật worktime_id (có thể rỗng)
     public function updateWorktimeId(Request $request, $task_id)
     {
         try {
             // Xác thực dữ liệu đầu vào
-            $request->validate([
-                'worktime_id' => 'nullable|exists:worktimes,id', // Cho phép null hoặc phải tồn tại trong bảng worktimes
+            $validatedData = $request->validate([
+                'worktime_id' => 'nullable|integer|exists:worktimes,id', // Phải là số nguyên hoặc null
             ]);
 
             // Tìm task theo ID
@@ -464,7 +464,7 @@ class TaskController extends Controller
             $oldWorktimeId = $task->worktime_id;
 
             // Cập nhật worktime_id mới (cho phép null)
-            $task->update(['worktime_id' => $request->input('worktime_id')]);
+            $task->update(['worktime_id' => $validatedData['worktime_id']]);
 
             // Ghi lại lịch sử nếu cần
             ActivityLog::create([
@@ -475,7 +475,7 @@ class TaskController extends Controller
                 'changes' => json_encode([
                     'worktime_id' => [
                         'old' => $oldWorktimeId,
-                        'new' => $request->input('worktime_id'),
+                        'new' => $validatedData['worktime_id'],
                     ],
                 ]),
             ]);
@@ -495,6 +495,54 @@ class TaskController extends Controller
             // Trả về lỗi hệ thống
             return response()->json([
                 'error' => 'Failed to update worktime_id: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+    public function updateStatus(Request $request, $task_id)
+    {
+        try {
+            // Validate dữ liệu đầu vào
+            $request->validate([
+                'status' => 'sometimes|required|integer|in:1,2,3,4',// Các trạng thái hợp lệ
+            ]);
+
+            // Tìm task theo ID
+            $task = Task::findOrFail($task_id);
+
+            // Lưu trạng thái mới vào task
+            $newStatus = $request->input('status');
+            $oldStatus = $task->status;
+
+            // Cập nhật trạng thái
+            $task->update(['status' => $newStatus]);
+
+            // Ghi lại lịch sử thay đổi trạng thái
+            ActivityLog::create([
+                'user_id' => Auth::user()->id, // ID của người thực hiện
+                'loggable_id' => $task->id, // ID của task
+                'loggable_type' => 'App\Models\Task', // Loại đối tượng
+                'action' => 'updated', // Hành động cập nhật
+                'changes' => json_encode([
+                    'status' => [
+                        'old' => $oldStatus,
+                        'new' => $newStatus,
+                    ],
+                ]), // Ghi lại thay đổi trạng thái
+            ]);
+
+            // Trả về JSON response với task đã cập nhật
+            return response()->json([
+                'message' => 'Task status updated successfully!',
+                'task' => $task,
+            ], 200);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'error' => 'Validation error.',
+                'details' => $e->errors(),
+            ], 422);
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Failed to update task status: ' . $e->getMessage(),
             ], 500);
         }
     }

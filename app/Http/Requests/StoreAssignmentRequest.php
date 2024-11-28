@@ -23,6 +23,7 @@ class StoreAssignmentRequest extends FormRequest
     public function rules()
     {
         return [
+            'project_id' => 'required|exists:projects,id',
             'task_id' => 'required|exists:tasks,id',
             'user_ids' => 'required|array',
             'user_ids.*' => 'integer|exists:users,id',

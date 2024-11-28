@@ -145,10 +145,7 @@ class AssignmentController extends Controller
             return response()->json(['error' => 'Failed to assign task: ' . $e->getMessage()], 500);
         }
     }
-
-
-
-
+    
     public function update(UpdateAssignmentRequest $request, $id)
     {
         try {
@@ -185,6 +182,12 @@ class AssignmentController extends Controller
             // Cập nhật trạng thái nếu có thay đổi
             if ($request->has('status') && $assignment->status != $request->status) {
                 $assignment->status = $request->status;
+                $assignment->save();
+            }
+
+            // Cập nhật ghi chú (note) nếu có thay đổi
+            if ($request->has('note') && $assignment->note != $request->note) {
+                $assignment->note = $request->note;
                 $assignment->save();
             }
 

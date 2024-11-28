@@ -17,6 +17,7 @@ class User extends Authenticatable implements MustVerifyEmail
     use HasApiTokens, HasFactory, Notifiable; // Thêm HasApiTokens vào đây
 
     use SoftDeletes;
+    protected $dates = ['deleted_at']; // Nếu chưa, thêm dòng này
     /**
      * The attributes that are mass assignable.
      *

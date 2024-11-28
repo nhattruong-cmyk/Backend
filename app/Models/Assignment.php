@@ -33,6 +33,11 @@ class Assignment extends Model
     {
         return $this->belongsTo(Department::class);
     }
+    
+    public function project()
+    {
+        return $this->belongsTo(Project::class);
+    }
 
     public function getStatusAttribute($value)
     {

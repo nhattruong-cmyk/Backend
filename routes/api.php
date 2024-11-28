@@ -74,10 +74,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('departments', [DepartmentController::class, 'index']);
     Route::get('departments/{id}', [DepartmentController::class, 'show']);
     Route::post('departments', [DepartmentController::class, 'store']);
-    Route::post('departments/{department_id}/add-user', [DepartmentController::class, 'addUserToDepartment']);
-    Route::post('/departments/{department_id}/remove-users', [DepartmentController::class, 'removeUserFromDepartment']);
+    Route::post('departments/{department_id}/add-users', [DepartmentController::class, 'addUsersToDepartment']);
+    Route::post('/departments/{department_id}/remove-users', [DepartmentController::class, 'removeUsersFromDepartment']);
     Route::put('departments/{department_id}', [DepartmentController::class, 'update']);
-    Route::post('/departments/{department_id}/add-users', [DepartmentController::class, 'addUsersToDepartment']);
     Route::delete('departments/{department_id}', [DepartmentController::class, 'destroy']);
     Route::delete('/departments/{id}/force', [DepartmentController::class, 'forceDelete']);
     Route::get('/trashed-departments', [DepartmentController::class, 'getTrashed']);
@@ -112,7 +111,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/tasks/{id}/restore', [TaskController::class, 'restore']);
     Route::get('/tasks/worktimes/{worktime_id}', [TaskController::class, 'getTasksByWorktimeId']);
     Route::patch('/tasks/{task_id}/worktime', [TaskController::class, 'updateWorktimeTask']);
-
+    Route::put('/tasks/{task_id}/worktime', [TaskController::class, 'updateWorktimeId']);
+    Route::put('/tasks/{task_id}/status', [TaskController::class, 'updateStatus']);
 
     // Assignments
     Route::get('/assignments', [AssignmentController::class, 'index']);

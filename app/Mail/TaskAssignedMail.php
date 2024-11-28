@@ -19,9 +19,9 @@ class TaskAssignedMail extends Mailable
     /**
      * Tạo thông báo email.
      */
-    public function __construct(Task $task, $note)
+    public function __construct(Task $validatedData, $note)
     {
-        $this->task = $task;
+        $this->task = $validatedData;
         $this->note = $note;
     }
 

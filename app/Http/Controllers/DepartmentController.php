@@ -71,29 +71,39 @@ class DepartmentController extends Controller
                 'user_ids.*.exists' => 'Một hoặc nhiều user không tồn tại trong hệ thống.',
                 'user_id.exists' => 'User không tồn tại trong hệ thống.'
             ]);
-
+    
             // Kiểm tra xem `user_ids` hay `user_id` được cung cấp
             $userIds = [];
-
+    
             // Nếu là `user_ids` (mảng), lấy toàn bộ giá trị trong mảng
             if (isset($validatedData['user_ids'])) {
                 $userIds = $validatedData['user_ids'];
             }
-
+    
             // Nếu là `user_id` (đơn lẻ), thêm vào mảng `userIds`
             if (isset($validatedData['user_id'])) {
                 $userIds[] = $validatedData['user_id'];
             }
-
+    
+            // Kiểm tra xem có user nào bị xóa mềm hay không
+            $deletedUsers = User::whereIn('id', $userIds)->whereNotNull('deleted_at')->pluck('id')->toArray();
+    
+            if (!empty($deletedUsers)) {
+                // Nếu có user bị xóa, trả về lỗi
+                return response()->json([
+                    'error' => 'Không thể thêm các user sau vào phòng ban vì họ đã bị xóa: ' . implode(', ', $deletedUsers)
+                ], 400);
+            }
+    
             // Tìm phòng ban theo ID
             $department = Department::findOrFail($department_id);
-
+    
             // Gán user vào phòng ban, nếu user đã tồn tại thì bỏ qua (syncWithoutDetaching)
             $department->users()->syncWithoutDetaching($userIds);
-
+    
             // Lấy danh sách user được thêm vào để tạo thông báo
             $users = User::whereIn('id', $userIds)->get();
-
+    
             foreach ($users as $user) {
                 Notification::create([
                     'user_id' => $user->id,
@@ -101,7 +111,7 @@ class DepartmentController extends Controller
                     'read' => false
                 ]);
             }
-
+    
             return response()->json([
                 'message' => 'Users added to department successfully.',
                 'department' => $department->load('users')
@@ -116,7 +126,7 @@ class DepartmentController extends Controller
             ], 500);
         }
     }
-
+    
     public function update(UpdateDepartmentRequest $request, $departmentId)
     {
         try {
@@ -185,7 +195,7 @@ class DepartmentController extends Controller
         return response()->json($department);
     }
 
-    public function removeUserFromDepartment(Request $request, $department_id)
+    public function removeUsersFromDepartment(Request $request, $department_id)
     {
         // Xác thực dữ liệu đầu vào
         $request->validate([
@@ -243,10 +253,16 @@ class DepartmentController extends Controller
         try {
             // Tìm phòng ban theo ID
             $department = Department::findOrFail($id);
-
-            // Thực hiện xóa mềm
+    
+            // Lấy tất cả user trong phòng ban
+            $usersInDepartment = $department->users; // Giả sử có quan hệ 'users' trong model Department
+    
+            // Xóa tất cả liên kết giữa user và phòng ban trong bảng department_user
+            $department->users()->detach(); // Gỡ tất cả user khỏi phòng ban
+    
+            // Thực hiện xóa mềm (soft delete) phòng ban
             $department->delete();
-
+    
             return response()->json(['message' => 'Department soft deleted successfully'], 200);
         } catch (\Illuminate\Database\QueryException $e) {
             // Bắt lỗi khóa ngoại (nếu có)
@@ -260,8 +276,7 @@ class DepartmentController extends Controller
             return response()->json(['error' => 'Failed to soft delete department: ' . $e->getMessage()], 500);
         }
     }
-
-
+    
     public function restore($id)
     {
         try {
