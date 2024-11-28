@@ -129,7 +129,7 @@ class WorktimesController extends Controller
         try {
             // Validate dữ liệu đầu vào
             $request->validate([
-                'status' => 'sometimes|required|integer|in:1,2,3,4', // Các trạng thái hợp lệ
+                'status' => 'sometimes|required|integer|in:1,2,3', // Các trạng thái hợp lệ
             ]);
 
             // Tìm task theo ID
