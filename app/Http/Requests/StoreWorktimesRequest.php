@@ -29,6 +29,7 @@ class StoreWorktimesRequest extends FormRequest
             'start_date' => 'nullable|date',
             'end_date' => 'nullable|date|after_or_equal:start_date',
             'project_id' => 'required|exists:projects,id',
+            'status' => 'sometimes|required|integer|in:1,2,3',
         ];
     }
     
@@ -39,6 +40,8 @@ class StoreWorktimesRequest extends FormRequest
             'name.max' => 'Tên thời gian làm việc không được vượt quá 255 ký tự.',
             'project_id.required' => 'Project ID là bắt buộc.',
             'project_id.exists' => 'Project ID phải tồn tại.',
+            'status.required' => 'Trạng thái là bắt buộc.',
+            'status.integer' => 'Trạng thái phải là một số nguyên.',
             'start_date.date' => 'Ngày bắt đầu phải là một ngày hợp lệ.',
             'end_date.date' => 'Ngày kết thúc phải là một ngày hợp lệ.',
             'end_date.after_or_equal' => 'Ngày kết thúc phải bằng hoặc sau ngày bắt đầu.',

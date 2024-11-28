@@ -7,6 +7,7 @@ use App\Http\Requests\UpdateWorktimesRequest;
 use App\Models\Worktimes;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use App\Models\ActivityLog;
 
 
 class WorktimesController extends Controller
@@ -23,13 +24,13 @@ class WorktimesController extends Controller
         try {
             // Dữ liệu đã được xác thực bởi StoreWorktimesRequest
             $validatedData = $request->validated();
-    
+
             // Thêm ID của người dùng đang đăng nhập vào dữ liệu đã xác thực
             $validatedData['user_id'] = Auth::id();
-    
+
             // Tạo Worktime mới
             $worktime = Worktimes::create($validatedData);
-    
+
             return response()->json([
                 'message' => 'Worktime created successfully',
                 'worktime' => $worktime,
@@ -46,28 +47,28 @@ class WorktimesController extends Controller
             ], 500);
         }
     }
-    
+
     public function show($id)
     {
         $worktimes = Worktimes::with('user')->find($id);
         return response()->json($worktimes, 200);
     }
-    
+
     public function update(UpdateWorktimesRequest $request, $id)
     {
         try {
             // Lấy dữ liệu đã xác thực từ UpdateWorktimesRequest
             $validatedData = $request->validated();
-    
+
             // Tìm Worktime cần cập nhật
             $worktime = Worktimes::findOrFail($id);
-    
+
             // Đảm bảo `user_id` không bị thay đổi bằng cách loại bỏ khỏi dữ liệu cập nhật
             unset($validatedData['user_id']);
-    
+
             // Cập nhật Worktime với dữ liệu mới, ngoại trừ user_id
             $worktime->update($validatedData);
-    
+
             return response()->json([
                 'message' => 'Worktime updated successfully',
                 'worktime' => $worktime,
@@ -88,26 +89,26 @@ class WorktimesController extends Controller
                 'error' => 'Failed to update worktime: ' . $e->getMessage()
             ], 500);
         }
-    }   
+    }
 
     public function destroy($id)
     {
         try {
             // Tìm Worktime theo ID
             $worktime = Worktimes::findOrFail($id);
-    
+
             // Kiểm tra xem worktime có dính khóa ngoại với tasks hay không
             $tasksCount = $worktime->tasks()->count(); // Đếm số lượng tasks liên quan
-    
+
             if ($tasksCount > 0) {
                 return response()->json([
                     'error' => 'Cannot delete worktime because it is associated with tasks.'
                 ], 400); // 400 Bad Request
             }
-    
+
             // Xóa mềm (soft delete)
             $worktime->delete();
-    
+
             return response()->json([
                 'message' => 'Worktime soft deleted successfully',
             ], 200);
@@ -121,7 +122,57 @@ class WorktimesController extends Controller
             ], 500); // 500 Internal Server Error
         }
     }
-    
+
+    // chỉ update riêng trường status
+    public function updateStatus(Request $request, $id)
+    {
+        try {
+            // Validate dữ liệu đầu vào
+            $request->validate([
+                'status' => 'sometimes|required|integer|in:1,2,3,4', // Các trạng thái hợp lệ
+            ]);
+
+            // Tìm task theo ID
+            $worktime = Worktimes::findOrFail($id);
+
+            // Lưu trạng thái mới vào task
+            $newStatus = $request->input('status');
+            $oldStatus = $worktime->status;
+
+            // Cập nhật trạng thái
+            $worktime->update(['status' => $newStatus]);
+
+            // Ghi lại lịch sử thay đổi trạng thái
+            ActivityLog::create([
+                'user_id' => Auth::user()->id, // ID của người thực hiện
+                'loggable_id' => $worktime->id, // ID của worktime
+                'loggable_type' => 'App\Models\Worktime', // Loại đối tượng
+                'action' => 'updated', // Hành động cập nhật
+                'changes' => json_encode([
+                    'status' => [
+                        'old' => $oldStatus,
+                        'new' => $newStatus,
+                    ],
+                ]), // Ghi lại thay đổi trạng thái
+            ]);
+
+            // Trả về JSON response với task đã cập nhật
+            return response()->json([
+                'message' => 'Worktime status updated successfully!',
+                'worktime' => $worktime,
+            ], 200);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'error' => 'Validation error.',
+                'details' => $e->errors(),
+            ], 422);
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Failed to update task status: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
     public function trashedWorktimes()
     {
         $trashedWorktimes = Worktimes::onlyTrashed()->get();

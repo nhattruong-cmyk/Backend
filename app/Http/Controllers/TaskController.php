@@ -498,12 +498,14 @@ class TaskController extends Controller
             ], 500);
         }
     }
+
+    // chỉ update riêng trường status
     public function updateStatus(Request $request, $task_id)
     {
         try {
             // Validate dữ liệu đầu vào
             $request->validate([
-                'status' => 'sometimes|required|integer|in:1,2,3,4',// Các trạng thái hợp lệ
+                'status' => 'sometimes|required|integer|in:1,2,3,4', // Các trạng thái hợp lệ
             ]);
 
             // Tìm task theo ID
@@ -543,6 +545,60 @@ class TaskController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'error' => 'Failed to update task status: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    // chỉ update riêng trường task_time
+    public function updateTaskTime(Request $request, $task_id)
+    {
+        try {
+            // Validate dữ liệu đầu vào
+            $request->validate([
+                'task_time' => 'sometimes|nullable|numeric', // Kiểm tra task_time là số và có thể null
+            ]);
+
+            // Tìm task theo ID
+            $task = Task::findOrFail($task_id);
+
+            // Lấy giá trị task_time mới
+            $newTaskTime = $request->input('task_time');
+
+            // Kiểm tra nếu có thay đổi task_time
+            if ($task->task_time !== $newTaskTime) {
+                $oldTaskTime = $task->task_time;
+
+                // Cập nhật task_time
+                $task->update(['task_time' => $newTaskTime]);
+
+                // Ghi lại lịch sử thay đổi
+                ActivityLog::create([
+                    'user_id' => Auth::user()->id, // ID của người thực hiện
+                    'loggable_id' => $task->id, // ID của task
+                    'loggable_type' => 'App\Models\Task', // Loại đối tượng
+                    'action' => 'updated', // Hành động cập nhật
+                    'changes' => json_encode([
+                        'task_time' => [
+                            'old' => $oldTaskTime,
+                            'new' => $newTaskTime,
+                        ],
+                    ]), // Ghi lại thay đổi task_time
+                ]);
+            }
+
+            // Trả về JSON response với task đã cập nhật
+            return response()->json([
+                'message' => 'Task time updated successfully!',
+                'task' => $task,
+            ], 200);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'error' => 'Validation error.',
+                'details' => $e->errors(),
+            ], 422);
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Failed to update task time: ' . $e->getMessage(),
             ], 500);
         }
     }

@@ -71,6 +71,8 @@ class UpdateTaskRequest extends FormRequest
             'files.*' => 'nullable|file|mimes:jpg,png,pdf,doc,docx,zip|max:20480',
             'delete_file_ids' => 'nullable|array',
             'delete_file_ids.*' => 'exists:files,id',
+            'task_time' => 'sometimes|nullable|numeric',
+            
         ];
     }
     
@@ -94,6 +96,7 @@ class UpdateTaskRequest extends FormRequest
             'location_task.in' => 'Vị trí nhiệm vụ phải là một trong các giá trị: 0, 1, hoặc 2.',
             'files.*.mimes' => 'Định dạng file phải là jpg, png, pdf, doc, docx, zip.',
             'files.*.max' => 'File không được vượt quá 20MB.',
+            'task_time.numeric' => 'Thời gian làm nhiệm vụ phải là một số.',
         ];
     }
 

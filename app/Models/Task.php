@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class Task extends Model
 {
     use HasFactory;
-    protected $fillable = ['task_name', 'description', 'status', 'start_date', 'end_date', 'project_id', 'location_task', 'worktime_id'];
+    protected $fillable = ['task_name', 'description', 'status', 'start_date', 'end_date', 'project_id', 'task_time', 'location_task', 'worktime_id'];
     use SoftDeletes;
     public function projects()
     {

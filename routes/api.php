@@ -113,6 +113,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::patch('/tasks/{task_id}/worktime', [TaskController::class, 'updateWorktimeTask']);
     Route::put('/tasks/{task_id}/worktime', [TaskController::class, 'updateWorktimeId']);
     Route::put('/tasks/{task_id}/status', [TaskController::class, 'updateStatus']);
+    Route::put('/tasks/{task_id}/tasktime', [TaskController::class, 'updateTaskTime']);
+
 
     // Assignments
     Route::get('/assignments', [AssignmentController::class, 'index']);
@@ -168,6 +170,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('worktimes-trashed', [WorktimesController::class, 'trashedWorktimes'])->name('trashedWorktimes');
     Route::patch('/worktimes/{id}/restore', [WorktimesController::class, 'restore']);
     Route::delete('/worktimes/{id}/force', [WorktimesController::class, 'forceDestroy']);
+    Route::put('/worktimes/{id}/status', [TaskController::class, 'updateStatus']);
+
 
 
     // Route lấy tất cả lịch sử

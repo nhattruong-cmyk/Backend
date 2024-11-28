@@ -29,6 +29,7 @@ class UpdateWorktimesRequest extends FormRequest
             'start_date' => 'nullable|date',
             'end_date' => 'nullable|date|after_or_equal:start_date',
             'project_id' => 'sometimes|required|exists:projects,id',
+            'status' => 'sometimes|required|integer|in:1,2,3',
         ];
     }
     
@@ -43,7 +44,9 @@ class UpdateWorktimesRequest extends FormRequest
             'end_date.date' => 'End date must be a valid date.',
             'end_date.after_or_equal' => 'End date must be equal to or later than the start date.',
             'project_id.required' => 'Project ID is required.',
-            'project_id.exists' => 'The specified project is invalid.'
+            'project_id.exists' => 'The specified project is invalid.',
+            'status.required' => 'Trạng thái là bắt buộc.',
+            'status.integer' => 'Trạng thái phải là một số nguyên.',
         ];
     }
     
