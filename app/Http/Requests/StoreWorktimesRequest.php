@@ -48,7 +48,12 @@ class StoreWorktimesRequest extends FormRequest
         ];
     }
     
-    
+    protected function prepareForValidation()
+    {
+        $this->merge([
+            'status' => $this->status ?? 1, // Gán mặc định là 1 nếu không có giá trị status
+        ]);
+    }
 
     protected function failedValidation(Validator $validator)
     {

@@ -170,9 +170,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('worktimes-trashed', [WorktimesController::class, 'trashedWorktimes'])->name('trashedWorktimes');
     Route::patch('/worktimes/{id}/restore', [WorktimesController::class, 'restore']);
     Route::delete('/worktimes/{id}/force', [WorktimesController::class, 'forceDestroy']);
-    Route::put('/worktimes/{id}/status', [TaskController::class, 'updateStatus']);
-
-
+    Route::put('/worktimes/{id}/status', [WorktimesController::class, 'updateStatus']);
 
     // Route lấy tất cả lịch sử
     Route::get('/activity-logs', [ActivityLogController::class, 'index']);

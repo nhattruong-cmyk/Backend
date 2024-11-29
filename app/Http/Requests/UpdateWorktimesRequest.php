@@ -29,7 +29,7 @@ class UpdateWorktimesRequest extends FormRequest
             'start_date' => 'nullable|date',
             'end_date' => 'nullable|date|after_or_equal:start_date',
             'project_id' => 'sometimes|required|exists:projects,id',
-            'status' => 'sometimes|required|integer|in:1,2,3',
+            'status' => 'nullable|string|in:1,2,3,not start,runing,conplete', // Thay đổi ở đây
         ];
     }
     
