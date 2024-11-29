@@ -327,39 +327,45 @@ class UserController extends Controller
     {
         // Tìm người dùng theo ID
         $user = User::find($id);
-
+    
         if (!$user) {
             return response()->json(['message' => 'User not found'], 404);
         }
-
+    
         // Kiểm tra xem có file ảnh không
         if ($request->hasFile('avatar')) {
             try {
                 // Xóa ảnh cũ nếu đã có
                 if ($user->avatar) {
-                    // Xóa ảnh cũ từ storage
-                    Storage::disk('public')->delete($user->avatar);
-                    Log::info('Old avatar deleted:', ['avatar' => $user->avatar]); // Log thông tin ảnh cũ đã xóa
+                    // Xóa ảnh cũ từ thư mục public/avatar
+                    $oldAvatarPath = public_path('avatar/' . $user->avatar);
+                    if (file_exists($oldAvatarPath)) {
+                        unlink($oldAvatarPath); // Xóa tệp ảnh cũ
+                        Log::info('Old avatar deleted:', ['avatar' => $user->avatar]); // Log thông tin ảnh cũ đã xóa
+                    }
                 }
-
+    
                 // Lưu avatar mới vào thư mục public/avatar
                 $avatarFile = $request->file('avatar');
                 $avatarFileName = time() . '_' . $avatarFile->getClientOriginalName();
-                $avatarPath = $avatarFile->storeAs('avatar', $avatarFileName, 'public');
-
-                // Cập nhật đường dẫn mới vào cơ sở dữ liệu
-                $user->avatar = $avatarPath;
+                $avatarPath = public_path('avatar/' . $avatarFileName); // Đường dẫn tuyệt đối tới ảnh mới
+    
+                // Di chuyển file ảnh vào thư mục public/avatar
+                $avatarFile->move(public_path('avatar'), $avatarFileName);
+    
+                // Cập nhật đường dẫn mới vào cơ sở dữ liệu (chỉ cần lưu tên file ảnh)
+                $user->avatar = $avatarFileName;
                 $user->save();
-
+    
                 Log::info('New avatar path saved:', ['avatar' => $avatarPath]); // Log thông tin ảnh mới
-
-                return response()->json(['message' => 'Avatar updated successfully', 'avatar' => $avatarPath]);
+    
+                return response()->json(['message' => 'Avatar updated successfully', 'avatar' => $avatarFileName]);
             } catch (\Exception $e) {
                 Log::error('Failed to update avatar: ' . $e->getMessage());
                 return response()->json(['error' => 'Failed to update avatar: ' . $e->getMessage()], 500);
             }
         }
-
+    
         return response()->json(['message' => 'No avatar file provided'], 400);
     }
 
