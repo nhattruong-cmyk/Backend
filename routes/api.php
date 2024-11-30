@@ -17,8 +17,11 @@ use App\Http\Controllers\ActivityLogController;
 use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\PasswordResetController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\ConfirmationController;
 
 
+Route::get('/confirmation/accept/{token}', [ConfirmationController::class, 'accept'])
+    ->name('confirmation.accept');
 Route::post('/register', [UserController::class, 'register']);
 Route::post('/login', [UserController::class, 'login']);
 Route::post('/logout', [UserController::class, 'logout'])->middleware('auth:sanctum');
@@ -29,6 +32,8 @@ Route::post('/forgot-password/verify', [PasswordResetController::class, 'verifyC
 Route::post('/forgot-password/reset', [PasswordResetController::class, 'resetPassword']);
 Route::post('/resend-verification-code', [UserController::class, 'resendVerificationCode']);
 Route::post('/auth/google', [UserController::class, 'handleGoogleLogin']);
+// routes/web.php
+
 
 
 

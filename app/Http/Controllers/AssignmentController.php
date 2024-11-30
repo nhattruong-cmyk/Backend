@@ -78,61 +78,63 @@ class AssignmentController extends Controller
                 'user_ids.*' => 'exists:users,id',
                 'note' => 'nullable|string',
             ]);
-
+    
             // Lấy thông tin task
             $task = Task::findOrFail($validatedData['task_id']);
-
+    
             // Lấy danh sách user hợp lệ trong phòng ban
             $validUsersInDepartment = DB::table('department_user')
                 ->where('department_id', $validatedData['department_id'])
                 ->pluck('user_id')
                 ->toArray();
-
+    
             $invalidDepartmentUsers = [];
             $assignedUsers = [];
-
+    
             foreach ($validatedData['user_ids'] as $user_id) {
                 // Kiểm tra người dùng có thuộc phòng ban không
                 if (!in_array($user_id, $validUsersInDepartment)) {
                     $invalidDepartmentUsers[] = $user_id;
                     continue;
                 }
-
+    
                 // Kiểm tra người dùng đã được phân công chưa
                 $existingAssignment = Assignment::where('task_id', $task->id)
                     ->where('user_id', $user_id)
                     ->where('department_id', $validatedData['department_id'])
                     ->exists();
-
+    
                 if ($existingAssignment) {
                     continue;
                 }
-
+    
                 // Tạo phân công mới
-                Assignment::create([
+                $assignment = Assignment::create([
                     'task_id' => $task->id,
                     'user_id' => $user_id,
                     'department_id' => $validatedData['department_id'],
                     'note' => $validatedData['note'] ?? '',
                     'status' => 'assigned', // Hoặc trạng thái khác nếu cần
                 ]);
-
+    
+                // Thêm người dùng vào bảng phụ task_user
+                $task->users()->attach($user_id, ['note' => $validatedData['note'] ?? '']);
+    
                 // Gửi email thông báo xác nhận
                 $user = User::find($user_id);
-
+    
                 if ($user && $user->email) {
                     try {
-                        Mail::to($user->email)->send(new TaskAssignedMail($task, $note ?? 'No notes available'));
-
+                        Mail::to($user->email)->send(new TaskAssignedMail($task, $validatedData['note'] ?? 'No notes available'));
                     } catch (\Exception $e) {
                         Log::error("Failed to send email to user {$user->email}: " . $e->getMessage());
                     }
                 }
-
+    
                 // Ghi nhận người dùng đã được phân công
                 $assignedUsers[] = $user_id;
             }
-
+    
             // Gửi phản hồi thành công với danh sách người dùng được phân công
             return response()->json([
                 'message' => 'Task assigned successfully',
@@ -145,6 +147,8 @@ class AssignmentController extends Controller
             return response()->json(['error' => 'Failed to assign task: ' . $e->getMessage()], 500);
         }
     }
+    
+    
     
     public function update(UpdateAssignmentRequest $request, $id)
     {

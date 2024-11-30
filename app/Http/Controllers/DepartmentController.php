@@ -9,21 +9,46 @@ use Illuminate\Http\Request;
 use App\Http\Requests\StoreDepartmentRequest;
 use App\Http\Requests\UpdateDepartmentRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
+use App\Mail\JoinDepartmentMail;
+use App\Models\ConfirmationRequest;
+use Illuminate\Support\Str;
 
 class DepartmentController extends Controller
 {
     public function index()
     {
-        $departments = Department::with('users')->get();
+        // Kiểm tra quyền của người dùng (sử dụng Policy)
+        $this->authorize('viewAny', Department::class);
+
+        // Lấy phòng ban theo vai trò người dùng
+        $user = auth()->user();
+
+        if ($user->role_id === 1 || $user->role_id === 2) {
+            // Nếu người dùng là Admin hoặc Manager, lấy tất cả phòng ban
+            $departments = Department::with('users')->get();
+        } elseif ($user->role_id === 3) {
+            // Nếu người dùng là Staff, chỉ lấy phòng ban mà họ là thành viên
+            $departments = $user->departments()->with('users')->get();
+        } else {
+            // Trả về lỗi nếu người dùng không có quyền truy cập
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
+        // Trả về kết quả dưới dạng JSON
         return response()->json($departments);
     }
+
 
     public function store(StoreDepartmentRequest $request)
     {
         try {
+            // Kiểm tra quyền của người dùng (sử dụng Policy)
+            $this->authorize('create', Department::class); // Sử dụng policy để kiểm tra quyền create
+
             // Dữ liệu đã được xác thực bởi StoreDepartmentRequest
             $validatedData = $request->validated();
-
 
             // Tạo phòng ban mới
             $department = Department::create($validatedData);
@@ -33,6 +58,7 @@ class DepartmentController extends Controller
                 $department->users()->sync($request->input('user_ids'));
             }
 
+            // Gửi thông báo cho các người dùng đã được thêm vào phòng ban
             $users = $department->users;
             foreach ($users as $user) {
                 Notification::create([
@@ -46,6 +72,11 @@ class DepartmentController extends Controller
                 'message' => 'Department created successfully',
                 'department' => $department->load('users')
             ], 201);
+        } catch (\Illuminate\Auth\Access\AuthorizationException $e) {
+            // Bắt lỗi phân quyền, trả về thông báo không đủ quyền
+            return response()->json([
+                'error' => 'You do not have permission to create a department.'
+            ], 403);
         } catch (\Illuminate\Validation\ValidationException $e) {
             // Bắt lỗi xác thực và trả về thông báo lỗi
             return response()->json([
@@ -62,11 +93,15 @@ class DepartmentController extends Controller
     public function addUsersToDepartment(Request $request, $department_id)
     {
         try {
-            // Xác thực đầu vào, chấp nhận cả `user_ids` (mảng) hoặc `user_id` (đơn lẻ)
+            // Kiểm tra quyền của người dùng (sử dụng Policy)
+            $department = Department::findOrFail($department_id);
+            $this->authorize('update', $department); // Kiểm tra quyền thêm người dùng vào phòng ban
+    
+            // Xác thực đầu vào
             $validatedData = $request->validate([
-                'user_ids' => 'sometimes|array', // Mảng user_ids
-                'user_ids.*' => 'integer|exists:users,id', // Mỗi user_id trong mảng phải hợp lệ
-                'user_id' => 'sometimes|integer|exists:users,id' // user_id đơn lẻ phải hợp lệ
+                'user_ids' => 'sometimes|array',
+                'user_ids.*' => 'integer|exists:users,id',
+                'user_id' => 'sometimes|integer|exists:users,id'
             ], [
                 'user_ids.*.exists' => 'Một hoặc nhiều user không tồn tại trong hệ thống.',
                 'user_id.exists' => 'User không tồn tại trong hệ thống.'
@@ -75,47 +110,41 @@ class DepartmentController extends Controller
             // Kiểm tra xem `user_ids` hay `user_id` được cung cấp
             $userIds = [];
     
-            // Nếu là `user_ids` (mảng), lấy toàn bộ giá trị trong mảng
             if (isset($validatedData['user_ids'])) {
                 $userIds = $validatedData['user_ids'];
             }
     
-            // Nếu là `user_id` (đơn lẻ), thêm vào mảng `userIds`
             if (isset($validatedData['user_id'])) {
                 $userIds[] = $validatedData['user_id'];
             }
     
-            // Kiểm tra xem có user nào bị xóa mềm hay không
-            $deletedUsers = User::whereIn('id', $userIds)->whereNotNull('deleted_at')->pluck('id')->toArray();
+            // Lưu yêu cầu xác nhận
+            foreach ($userIds as $userId) {
+                $confirmationToken = Str::random(32); // Tạo mã xác nhận ngẫu nhiên
     
-            if (!empty($deletedUsers)) {
-                // Nếu có user bị xóa, trả về lỗi
-                return response()->json([
-                    'error' => 'Không thể thêm các user sau vào phòng ban vì họ đã bị xóa: ' . implode(', ', $deletedUsers)
-                ], 400);
-            }
-    
-            // Tìm phòng ban theo ID
-            $department = Department::findOrFail($department_id);
-    
-            // Gán user vào phòng ban, nếu user đã tồn tại thì bỏ qua (syncWithoutDetaching)
-            $department->users()->syncWithoutDetaching($userIds);
-    
-            // Lấy danh sách user được thêm vào để tạo thông báo
-            $users = User::whereIn('id', $userIds)->get();
-    
-            foreach ($users as $user) {
-                Notification::create([
-                    'user_id' => $user->id,
-                    'message' => "Bạn đã được thêm vào phòng ban '{$department->department_name}'",
-                    'read' => false
+                // Tạo yêu cầu xác nhận
+                ConfirmationRequest::create([
+                    'user_id' => $userId,
+                    'department_id' => $department_id,
+                    'confirmation_token' => $confirmationToken,
+                    'status' => 'pending',
                 ]);
+    
+                // Gửi email xác nhận
+                $user = User::find($userId);
+                if ($user && $user->email) {
+                    Mail::to($user->email)->send(new JoinDepartmentMail($user, $department, $confirmationToken));
+                }
             }
     
             return response()->json([
-                'message' => 'Users added to department successfully.',
-                'department' => $department->load('users')
+                'message' => 'Users have been added to the confirmation queue.',
             ], 200);
+    
+        } catch (\Illuminate\Auth\Access\AuthorizationException $e) {
+            return response()->json([
+                'error' => 'You do not have permission to add users to this department.'
+            ], 403);
         } catch (\Illuminate\Validation\ValidationException $e) {
             return response()->json([
                 'errors' => $e->errors(),
@@ -127,11 +156,16 @@ class DepartmentController extends Controller
         }
     }
     
+
+
     public function update(UpdateDepartmentRequest $request, $departmentId)
     {
         try {
             // Tìm phòng ban theo ID
             $department = Department::findOrFail($departmentId);
+
+            // Kiểm tra quyền của người dùng (sử dụng Policy)
+            $this->authorize('update', $department); // Kiểm tra quyền cập nhật phòng ban
 
             $validatedData = $request->validated();
 
@@ -169,6 +203,11 @@ class DepartmentController extends Controller
                 'message' => 'Department updated successfully.',
                 'department' => $department->load('users')
             ], 200);
+        } catch (\Illuminate\Auth\Access\AuthorizationException $e) {
+            // Nếu người dùng không có quyền, trả về lỗi 403
+            return response()->json([
+                'error' => 'You do not have permission to update this department.'
+            ], 403);
         } catch (\Illuminate\Validation\ValidationException $e) {
             // Bắt lỗi xác thực và trả về thông báo lỗi
             return response()->json([
@@ -182,18 +221,35 @@ class DepartmentController extends Controller
         }
     }
 
+
     public function show($id)
     {
-        // Tìm phòng ban theo id, kèm theo thông tin các người dùng liên quan
-        $department = Department::with('users', 'tasks')->find($id);
+        try {
+            // Tìm phòng ban theo ID, kèm theo thông tin người dùng và nhiệm vụ
+            $department = Department::with('users', 'tasks')->find($id);
 
-        // Kiểm tra nếu phòng ban không tồn tại
-        if (!$department) {
-            return response()->json(['message' => 'Department not found'], 404);
+            // Kiểm tra nếu phòng ban không tồn tại
+            if (!$department) {
+                return response()->json(['message' => 'Department not found'], 404);
+            }
+
+            // Kiểm tra quyền của người dùng (sử dụng Policy)
+            $this->authorize('view', $department); // Kiểm tra quyền xem phòng ban
+
+            return response()->json($department);
+        } catch (\Illuminate\Auth\Access\AuthorizationException $e) {
+            // Nếu người dùng không có quyền, trả về lỗi 403
+            return response()->json([
+                'error' => 'You do not have permission to view this department.'
+            ], 403);
+        } catch (\Exception $e) {
+            // Bắt lỗi chung và trả về thông báo lỗi
+            return response()->json([
+                'error' => 'Failed to retrieve department: ' . $e->getMessage()
+            ], 500);
         }
-
-        return response()->json($department);
     }
+
 
     public function removeUsersFromDepartment(Request $request, $department_id)
     {
@@ -253,17 +309,25 @@ class DepartmentController extends Controller
         try {
             // Tìm phòng ban theo ID
             $department = Department::findOrFail($id);
-    
+
+            // Kiểm tra quyền của người dùng (sử dụng Policy)
+            $this->authorize('delete', $department); // Kiểm tra quyền xóa phòng ban
+
             // Lấy tất cả user trong phòng ban
-            $usersInDepartment = $department->users; // Giả sử có quan hệ 'users' trong model Department
-    
+            $usersInDepartment = $department->users;
+
             // Xóa tất cả liên kết giữa user và phòng ban trong bảng department_user
             $department->users()->detach(); // Gỡ tất cả user khỏi phòng ban
-    
+
             // Thực hiện xóa mềm (soft delete) phòng ban
             $department->delete();
-    
+
             return response()->json(['message' => 'Department soft deleted successfully'], 200);
+        } catch (\Illuminate\Auth\Access\AuthorizationException $e) {
+            // Nếu người dùng không có quyền, trả về lỗi 403
+            return response()->json([
+                'error' => 'You do not have permission to delete this department.'
+            ], 403);
         } catch (\Illuminate\Database\QueryException $e) {
             // Bắt lỗi khóa ngoại (nếu có)
             if ($e->getCode() === '23000') {
@@ -276,21 +340,31 @@ class DepartmentController extends Controller
             return response()->json(['error' => 'Failed to soft delete department: ' . $e->getMessage()], 500);
         }
     }
-    
+
+
     public function restore($id)
     {
         try {
             // Tìm phòng ban đã xóa mềm
             $department = Department::onlyTrashed()->findOrFail($id);
 
-            // Thực hiện khôi phục
+            // Kiểm tra quyền của người dùng (sử dụng Policy)
+            $this->authorize('restore', $department); // Kiểm tra quyền khôi phục phòng ban
+
+            // Thực hiện khôi phục phòng ban
             $department->restore();
 
             return response()->json(['message' => 'Department restored successfully'], 200);
+        } catch (\Illuminate\Auth\Access\AuthorizationException $e) {
+            // Nếu người dùng không có quyền, trả về lỗi 403
+            return response()->json([
+                'error' => 'You do not have permission to restore this department.'
+            ], 403);
         } catch (\Exception $e) {
             return response()->json(['error' => 'Failed to restore department: ' . $e->getMessage()], 500);
         }
     }
+
 
     public function getTrashed()
     {
@@ -314,15 +388,22 @@ class DepartmentController extends Controller
             // Tìm phòng ban đã bị xóa mềm
             $department = Department::onlyTrashed()->findOrFail($id);
 
-            // Thực hiện xóa cứng
+            // Kiểm tra quyền của người dùng (sử dụng Policy)
+            $this->authorize('forceDelete', $department); // Kiểm tra quyền xóa cứng phòng ban
+
+            // Thực hiện xóa cứng phòng ban
             $department->forceDelete();
 
             return response()->json(['message' => 'Department permanently deleted successfully'], 200);
+        } catch (\Illuminate\Auth\Access\AuthorizationException $e) {
+            // Nếu người dùng không có quyền, trả về lỗi 403
+            return response()->json([
+                'error' => 'You do not have permission to permanently delete this department.'
+            ], 403);
         } catch (\Illuminate\Database\QueryException $e) {
             return response()->json(['error' => 'Failed to permanently delete department: ' . $e->getMessage()], 500);
         } catch (\Exception $e) {
             return response()->json(['error' => 'Failed to permanently delete department: ' . $e->getMessage()], 500);
         }
     }
-    
 }
