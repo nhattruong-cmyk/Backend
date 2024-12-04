@@ -152,7 +152,7 @@ class TaskController extends Controller
     {
         try {
             // Tìm task theo ID và tải các mối quan hệ như project, departments, và files
-            $task = Task::with(['projects.departments', 'files'])->findOrFail($task_id);
+            $task = Task::with(['projects.departments', 'files','comments'])->findOrFail($task_id);
 
             // Kiểm tra quyền của người dùng đối với task (sử dụng Policy)
             $this->authorize('view', $task); // Kiểm tra quyền xem task

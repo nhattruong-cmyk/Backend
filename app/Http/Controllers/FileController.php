@@ -97,14 +97,27 @@ class FileController extends Controller
     // FileController.php
     public function downloadFile($fileId)
     {
-        $file = File::find($fileId);
-
-        if (!$file) {
-            return response()->json(['error' => 'File not found'], 404);
+        // Kiểm tra xác thực người dùng
+        if (!Auth::check()) {
+            return response()->json(['error' => 'Unauthorized'], 401);
         }
-
-        return Storage::disk('public')->download($file->file_path, $file->file_name);
+    
+        $file = File::find($fileId);
+    
+        if (!$file) {
+            return response()->json(['error' => 'File không tìm thấy'], 404);
+        }
+    
+        $filePath = storage_path("app/public/{$file->file_path}");
+    
+        if (!file_exists($filePath)) {
+            return response()->json(['error' => 'File không tồn tại'], 404);
+        }
+    
+        return response()->download($filePath, $file->file_name);
     }
+    
+
 
     public function show($id)
     {

@@ -19,12 +19,16 @@ class Task extends Model
 
     // Model Task
 // Trong model Task
-public function worktime()
-{
-    return $this->belongsTo(Worktimes::class, 'worktime_id');  // Chú ý đến 'worktime_id'
-}
+    public function worktime()
+    {
+        return $this->belongsTo(Worktimes::class, 'worktime_id');  // Chú ý đến 'worktime_id'
+    }
 
-
+    public function comments()
+    {
+        return $this->hasMany(Comment::class); // One Task can have many Comments
+    }
+    
     public function departments()
     {
         return $this->belongsToMany(Department::class, 'task_department', 'task_id', 'department_id')
