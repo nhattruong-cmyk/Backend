@@ -47,8 +47,8 @@ class UserController extends Controller
                 $query->where('name', 'Staff');
             })->orWhere('id', $user->id)->get();
         } elseif ($user->hasRole('Staff')) {
-            // Nếu là staff thì chỉ trả về chính người đó
-            $users = User::where('id', $user->id)->get();
+            // Thêm quyền để role 3 (Staff) cũng có thể xem tất cả người dùng
+            $users = User::all();  // Thay vì chỉ trả về chính người dùng đó
         } else {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
@@ -592,12 +592,14 @@ class UserController extends Controller
             ], 400); // Trả về mã lỗi 400 nếu email chưa được xác thực
         }
         $token = $user->createToken('auth_token')->plainTextToken;
+        $roleName = $user->role ? $user->role->name : null;
 
         return response()->json([
             'status' => 'success',
             'message' => 'Login successful',
             'access_token' => $token,
             'token_type' => 'Bearer',
+            'role' => $roleName, // Trả về tên role của người dùng
         ]);
     }
 
@@ -737,7 +739,5 @@ class UserController extends Controller
             return response()->json(['message' => 'Error processing Google login', 'error' => $e->getMessage()], 500);
         }
     }
-
-
     
 }

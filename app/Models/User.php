@@ -35,6 +35,7 @@ class User extends Authenticatable implements MustVerifyEmail
         'otp_code',
         'otp_expires_at',
         'google_id',
+        'create_by',
 
     ];
 
@@ -99,6 +100,7 @@ class User extends Authenticatable implements MustVerifyEmail
     {
         return $this->hasMany(Assignment::class);
     }
+
     // Mối quan hệ với bảng activity_logs
     public function activityLogs()
     {
@@ -109,4 +111,17 @@ class User extends Authenticatable implements MustVerifyEmail
     {
         return $this->hasMany(Worktimes::class, 'user_id');
     }
+
+    // Trong model User
+    public function created_projects()
+    {
+        return $this->hasMany(Project::class, 'user_id'); // Mối quan hệ giữa User và Project (User tạo Project)
+    }
+
+    public function taskmasterAssignments()
+    {
+        // Liên kết với bảng assignments và lọc bằng cột taskmaster
+        return $this->hasMany(Assignment::class, 'taskmaster', 'id');
+    }
+    
 }

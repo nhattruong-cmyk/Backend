@@ -61,7 +61,9 @@
         <h1>Chào {{ $user->name }},</h1>
         <p>Bạn đã được mời tham gia phòng ban: <strong>{{ $department->department_name }}</strong>.</p>
         <p>Vui lòng nhấp vào liên kết dưới đây để xác nhận việc tham gia của bạn:</p>
-        <a href="{{ $confirmationUrl }}" class="cta-button">Xác nhận tham gia phòng ban</a>
+      <a href="{{ url('http://localhost:3000/taskmaneger/departments/confirm/' . $department->id . '/' . $confirmationToken) }}" class="cta-button">
+            Xác nhận tham gia phòng ban
+        </a>
         
         <div class="footer">
             <p>Chúng tôi hy vọng bạn sẽ tham gia và đóng góp vào sự phát triển của phòng ban.</p>

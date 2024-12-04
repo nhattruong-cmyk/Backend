@@ -16,10 +16,12 @@ class Worktimes extends Model
         return $this->belongsTo(User::class, 'user_id');
     }
 
+    // Trong model Worktime
     public function tasks()
     {
         return $this->hasMany(Task::class, 'worktime_id');
     }
+
 
     public function getStatusAttribute($value)
     {

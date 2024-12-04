@@ -5,6 +5,7 @@ namespace App\Http\Requests;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Http\Exceptions\HttpResponseException;
+
 class StoreUserRequest extends FormRequest
 {
     /**
@@ -22,6 +23,7 @@ class StoreUserRequest extends FormRequest
      */
     public function rules()
     {
+
         // Các quy tắc xác thực cho request
         return [
             'fullname' => 'required|string|max:255',
@@ -29,7 +31,7 @@ class StoreUserRequest extends FormRequest
             'password' => 'required|string|min:6',
             'avatar' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048', // Thêm quy tắc cho ảnh đại diện
             'phone_number' => 'nullable|numeric|unique:users,phone_number', // Thêm xác thực cho số điện thoại
-
+            'create_by' => 'nullable|integer|between:1000,9999', // Thêm quy tắc cho create_by nếu cần
         ];
     }
 

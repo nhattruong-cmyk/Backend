@@ -30,6 +30,8 @@ class StoreAssignmentRequest extends FormRequest
             'department_id' => 'required|exists:departments,id',
             'status' => 'required|integer|in:1,2,3,4',
             'note' => 'nullable|string',
+            'taskmaster' => 'nullable|exists:users,id', // Cột taskmaster vẫn còn xác thực nhưng sẽ mặc định lấy người dùng hiện tại
+
         ];
     }
 

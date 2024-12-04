@@ -9,13 +9,15 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class Assignment extends Model
 {
     use HasFactory;
-
+    use SoftDeletes;
     protected $fillable = [
         'task_id',
         'user_id',
         'department_id',
         'note',
         'status',
+        'project_id',
+        'taskmaster',
     ];
     use SoftDeletes;
     // Quan hệ với Task
@@ -29,11 +31,13 @@ class Assignment extends Model
         return $this->belongsTo(User::class);
     }
 
+    // Trong mô hình Assignment
     public function department()
     {
-        return $this->belongsTo(Department::class);
+        return $this->belongsTo(Department::class); // Mối quan hệ một chiều, Assignment thuộc về một Department
     }
-    
+
+
     public function project()
     {
         return $this->belongsTo(Project::class);
@@ -48,11 +52,11 @@ class Assignment extends Model
             3 => 'preview',
             4 => 'done'
         ];
-    
+
         // Kiểm tra nếu khóa tồn tại trong mảng
         return $statuses[$value] ?? 'unknown'; // Trả về 'unknown' nếu không tìm thấy giá trị phù hợp
     }
-    
+
     // Tạo mutator để lưu status dưới dạng số
     public function setStatusAttribute($value)
     {
@@ -61,15 +65,21 @@ class Assignment extends Model
             'in progress' => 2,
             'preview' => 3,
             'done' => 4,
-            
+
             1 => 1,
             2 => 2,
             3 => 3,
             4 => 4,
 
         ];
-    
+
         // Đặt giá trị status thành 0 (pending) nếu không tìm thấy
         $this->attributes['status'] = $statuses[$value] ?? 1;
+    }
+
+    // Trong model Assignment
+    public function taskmaster()
+    {
+        return $this->belongsTo(User::class, 'taskmaster'); // Liên kết với bảng users qua cột taskmaster
     }
 }

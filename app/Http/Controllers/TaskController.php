@@ -24,29 +24,49 @@ class TaskController extends Controller
     // lấy danh sách Task
     public function index(Request $request)
     {
-        $this->authorize('viewAny', Task::class); // Kiểm tra quyền xem task
-        
-        // Nếu là Admin hoặc Manager, lấy tất cả task
+        // Kiểm tra quyền xem task (Sử dụng Policy)
+        $this->authorize('viewAny', Task::class);
+
+        // Nếu là Admin hoặc Manager, lấy tất cả các task
         if ($request->user()->role_id === 1 || $request->user()->role_id === 2) {
             $tasks = Task::all();
         }
-    
-        // Nếu là Staff, chỉ lấy các task liên quan đến department mà họ tham gia
+
+        // Nếu là Staff, lấy các task mà họ đã tạo và các task liên quan tới department mà họ tham gia
         if ($request->user()->role_id === 3) {
+            // Lấy các task mà user đã tạo (dựa vào user_id)
+            $createdTasks = Task::where('user_id', $request->user()->id)->get();
+
             // Lấy tất cả các department mà user tham gia
             $departments = $request->user()->departments;
-    
-            // Lấy tất cả task trong các department đó
-            $tasks = $departments->flatMap(function ($department) {
+
+            // Lấy tất cả task trong các department mà user tham gia
+            $relatedTasks = $departments->flatMap(function ($department) {
                 return $department->tasks;
             });
+
+            // Kết hợp các task đã tạo và các task liên quan đến các department mà user tham gia
+            $tasks = $createdTasks->merge($relatedTasks)->unique('id');
         }
-    
+
         return response()->json($tasks);
     }
-    
-    
 
+    public function getTasksByProject($projectId)
+    {
+        try {
+            // Lấy tất cả task thuộc project_id
+            $tasks = Task::where('project_id', $projectId)->get();
+
+            if ($tasks->isEmpty()) {
+                return response()->json(['message' => 'Không thấy nhiệm vụ nào trong dự án này'], 404);
+            }
+
+            return response()->json(['tasks' => $tasks], 200);
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'Lỗi không thấy nhiệm vụ: ' . $e->getMessage()], 500);
+        }
+    }
 
     // tạo mới task
     public function store(StoreTaskRequest $request)
@@ -57,6 +77,8 @@ class TaskController extends Controller
 
             // Lấy dữ liệu đã xác thực từ StoreTaskRequest
             $validatedData = $request->validated();
+            // Thêm user_id của người đăng nhập vào dữ liệu được xác thực
+            $validatedData['user_id'] = Auth::id();
 
             // Lấy thông tin project hiện tại và các departments thuộc project đó
             $project = Project::with('departments')->findOrFail($validatedData['project_id']);
@@ -128,27 +150,49 @@ class TaskController extends Controller
     // xem thôg tin task
     public function show($task_id)
     {
-        // Kiểm tra quyền xem task (sử dụng Policy)
-        $this->authorize('view', Task::class);
+        try {
+            // Tìm task theo ID và tải các mối quan hệ như project, departments, và files
+            $task = Task::with(['projects.departments', 'files'])->findOrFail($task_id);
 
-        // Tải trước mối quan hệ project, departments của project và files liên quan đến task
-        $task = Task::with(['project.departments', 'files'])->find($task_id);
+            // Kiểm tra quyền của người dùng đối với task (sử dụng Policy)
+            $this->authorize('view', $task); // Kiểm tra quyền xem task
 
-        // Kiểm tra nếu task không tồn tại
-        if (!$task) {
-            return response()->json(['message' => 'Task not found'], 404);
-        }
+            // Kiểm tra quyền của người dùng (tùy theo role_id)
+            $user = auth()->user();
 
-        // Kiểm tra quyền của người dùng đối với task (ví dụ: chỉ cho phép người quản lý task xem)
-        if (auth()->user()->cannot('view', $task)) {
+            // Admin và Manager có thể xem bất kỳ task nào
+            if ($user->role_id === 1 || $user->role_id === 2) {
+                return response()->json($task, 200);
+            }
+
+            // Staff (role_id = 3): Có thể xem task nếu họ đã tạo task đó hoặc task liên quan đến department mà họ tham gia
+            if ($user->role_id === 3) {
+                // Kiểm tra nếu task được tạo bởi user này
+                if ($task->user_id === $user->id) {
+                    return response()->json($task, 200);
+                }
+
+                // Kiểm tra nếu task liên quan đến department mà user tham gia
+                $userDepartments = $user->departments->pluck('id');
+                $taskDepartments = $task->projects->pluck('departments.id');
+
+                // Nếu có department nào chung, cho phép xem task
+                if ($userDepartments->intersect($taskDepartments)->isNotEmpty()) {
+                    return response()->json($task, 200);
+                }
+
+                // Nếu không có quyền, trả về Unauthorized
+                return response()->json(['message' => 'Unauthorized'], 403);
+            }
+
+            // Trường hợp khác (không đủ quyền), trả về Unauthorized
             return response()->json(['message' => 'Unauthorized'], 403);
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json(['message' => 'Task not found'], 404); // 404 Task not found
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'Failed to fetch task details: ' . $e->getMessage()], 500); // 500 Server error
         }
-
-        // Trả về thông tin task với mối quan hệ đã tải
-        return response()->json($task, 200);
     }
-
-
 
     // cập nhật task
     public function update(UpdateTaskRequest $request, $task_id)
@@ -248,7 +292,6 @@ class TaskController extends Controller
         }
     }
 
-
     // lấy danh sách phòng ban theo project
     public function getDepartmentsByProjectId($project_id)
     {
@@ -285,23 +328,23 @@ class TaskController extends Controller
             $request->validate([
                 'location_task' => 'sometimes|required|integer|in:0,1,2', // Giá trị vị trí 0,1,2
             ]);
-    
+
             // Tìm task theo ID
             $task = Task::findOrFail($task_id);
-    
+
             // Kiểm tra quyền của người dùng để cập nhật task
             $this->authorize('update', $task); // Sử dụng phân quyền update từ TaskPolicy
-    
+
             // Lấy giá trị location_task mới
             $newLocationTask = $request->input('location_task');
-    
+
             // Kiểm tra nếu có thay đổi location_task
             if ($task->location_task !== $newLocationTask) {
                 $oldLocationTask = $task->location_task;
-    
+
                 // Cập nhật location_task
                 $task->update(['location_task' => $newLocationTask]);
-    
+
                 // Ghi lại lịch sử thay đổi
                 ActivityLog::create([
                     'user_id' => Auth::user()->id, // ID của người thực hiện
@@ -316,7 +359,7 @@ class TaskController extends Controller
                     ]), // Ghi lại thay đổi location_task
                 ]);
             }
-    
+
             // Trả về JSON response với task đã cập nhật
             return response()->json([
                 'message' => 'Task location_task updated successfully!',
@@ -333,50 +376,50 @@ class TaskController extends Controller
             ], 500);
         }
     }
-    
+
     // di chuyển task
     public function moveTasksToAnotherWorktime()
     {
         try {
             // Kiểm tra quyền của người dùng để di chuyển task
             $this->authorize('moveTasksToAnotherWorktime', Task::class);
-    
+
             // Lấy thời gian hiện tại
             $currentTime = now();
-    
+
             // Lấy danh sách các worktime gần hết hạn (ví dụ: hết hạn trong vòng 1 ngày)
             $worktimesAboutToExpire = Worktimes::where('end_date', '<=', $currentTime->addDay())
                 ->whereHas('tasks', function ($query) {
                     $query->where('status', '!=', 'completed'); // Lọc các task chưa hoàn thành
                 })
                 ->get();
-    
+
             if ($worktimesAboutToExpire->isEmpty()) {
                 return response()->json([
                     'message' => 'No worktimes with pending tasks about to expire found.',
                 ], 404);
             }
-    
+
             // Duyệt qua từng worktime gần hết hạn
             foreach ($worktimesAboutToExpire as $worktime) {
                 // Lấy danh sách task chưa hoàn thành trong worktime
                 $pendingTasks = $worktime->tasks()->where('status', '!=', 'completed')->get();
-    
+
                 // Tìm một worktime mới phù hợp (ví dụ: worktime bắt đầu sau ngày hiện tại)
                 $newWorktime = Worktimes::where('start_date', '>', $currentTime)
                     ->where('end_date', '>', $worktime->end_date) // Phải có thời gian kết thúc sau worktime cũ
                     ->first();
-    
+
                 if (!$newWorktime) {
                     // Nếu không tìm thấy worktime phù hợp, bỏ qua task
                     Log::warning("No suitable worktime found for tasks in worktime ID {$worktime->id}");
                     continue;
                 }
-    
+
                 // Chuyển từng task qua worktime mới
                 foreach ($pendingTasks as $task) {
                     $task->update(['worktime_id' => $newWorktime->id]);
-    
+
                     // Ghi lại lịch sử hoạt động
                     ActivityLog::create([
                         'user_id' => Auth::user()->id, // Người thực hiện
@@ -392,7 +435,7 @@ class TaskController extends Controller
                     ]);
                 }
             }
-    
+
             return response()->json([
                 'message' => 'Tasks moved to suitable worktimes successfully.',
             ], 200);
@@ -402,34 +445,49 @@ class TaskController extends Controller
             ], 500);
         }
     }
-    
 
     // xóa mềm task
-    public function delete($task_id)
+    public function destroy($task_id)
     {
         try {
             // Tìm task theo ID
             $task = Task::findOrFail($task_id);
-
+    
             // Phân quyền xóa task
             $this->authorize('delete', $task); // Gọi phân quyền trong TaskPolicy
-
-            // Xóa task
+    
+            // Kiểm tra trạng thái của task (nếu cần)
+            if ($task->status === 'completed') {
+                return response()->json([
+                    'error' => 'Completed tasks cannot be deleted.'
+                ], 403); // Không cho phép xóa task đã hoàn thành
+            }
+    
+            // Xóa mềm task
             $task->delete();
-
+    
             return response()->json([
-                'message' => 'Task deleted successfully.',
+                'message' => 'Task soft-deleted successfully.',
+                'task' => $task, // Trả về thông tin task đã xóa
             ], 200);
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            // Nếu không tìm thấy task
             return response()->json([
                 'error' => 'Task not found.',
             ], 404);
-        } catch (\Exception $e) {
+        } catch (\Illuminate\Auth\Access\AuthorizationException $e) {
+            // Nếu không đủ quyền
             return response()->json([
-                'error' => 'Failed to delete task: ' . $e->getMessage(),
+                'error' => 'You do not have permission to delete this task.',
+            ], 403);
+        } catch (Exception $e) {
+            // Bắt lỗi chung
+            return response()->json([
+                'error' => 'Failed to soft-delete task: ' . $e->getMessage(),
             ], 500);
         }
     }
+    
 
     // khôi phục task đã xóa mềm
     public function restore($task_id)
@@ -449,7 +507,6 @@ class TaskController extends Controller
             return response()->json(['error' => 'Failed to restore task: ' . $e->getMessage()], 500);
         }
     }
-
 
     // lấy danh sách task đã xóa mềm
     public function getTrashed()
@@ -491,7 +548,6 @@ class TaskController extends Controller
             return response()->json(['error' => 'Failed to permanently delete task: ' . $e->getMessage()], 500);
         }
     }
-
 
     // lấy danh sách task từ worktime_id
     public function getTasksByWorktimeId($id = null)
@@ -572,55 +628,54 @@ class TaskController extends Controller
     }
 
     // chỉ update riêng trường status
-// chỉ update riêng trường status
-public function updateStatus(Request $request, $task_id)
-{
-    try {
-        // Validate dữ liệu đầu vào
-        $request->validate([
-            'status' => 'sometimes|required|integer|in:1,2,3,4', // Các trạng thái hợp lệ
-        ]);
+    public function updateStatus(Request $request, $task_id)
+    {
+        try {
+            // Validate dữ liệu đầu vào
+            $request->validate([
+                'status' => 'sometimes|required|integer|in:1,2,3,4', // Các trạng thái hợp lệ
+            ]);
 
-        // Tìm task theo ID
-        $task = Task::findOrFail($task_id);
+            // Tìm task theo ID
+            $task = Task::findOrFail($task_id);
 
-        // Lưu trạng thái mới vào task
-        $newStatus = $request->input('status');
-        $oldStatus = $task->status;
+            // Lưu trạng thái mới vào task
+            $newStatus = $request->input('status');
+            $oldStatus = $task->status;
 
-        // Cập nhật trạng thái
-        $task->update(['status' => $newStatus]);
+            // Cập nhật trạng thái
+            $task->update(['status' => $newStatus]);
 
-        // Ghi lại lịch sử thay đổi trạng thái
-        ActivityLog::create([
-            'user_id' => Auth::user()->id, // ID của người thực hiện
-            'loggable_id' => $task->id, // ID của task
-            'loggable_type' => 'App\Models\Task', // Loại đối tượng
-            'action' => 'updated', // Hành động cập nhật
-            'changes' => json_encode([
-                'status' => [
-                    'old' => $oldStatus,
-                    'new' => $newStatus,
-                ],
-            ]), // Ghi lại thay đổi trạng thái
-        ]);
+            // Ghi lại lịch sử thay đổi trạng thái
+            ActivityLog::create([
+                'user_id' => Auth::user()->id, // ID của người thực hiện
+                'loggable_id' => $task->id, // ID của task
+                'loggable_type' => 'App\Models\Task', // Loại đối tượng
+                'action' => 'updated', // Hành động cập nhật
+                'changes' => json_encode([
+                    'status' => [
+                        'old' => $oldStatus,
+                        'new' => $newStatus,
+                    ],
+                ]), // Ghi lại thay đổi trạng thái
+            ]);
 
-        // Trả về JSON response với task đã cập nhật
-        return response()->json([
-            'message' => 'Task status updated successfully!',
-            'task' => $task,
-        ], 200);
-    } catch (\Illuminate\Validation\ValidationException $e) {
-        return response()->json([
-            'error' => 'Validation error.',
-            'details' => $e->errors(),
-        ], 422);
-    } catch (\Exception $e) {
-        return response()->json([
-            'error' => 'Failed to update task status: ' . $e->getMessage(),
-        ], 500);
+            // Trả về JSON response với task đã cập nhật
+            return response()->json([
+                'message' => 'Task status updated successfully!',
+                'task' => $task,
+            ], 200);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'error' => 'Validation error.',
+                'details' => $e->errors(),
+            ], 422);
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Failed to update task status: ' . $e->getMessage(),
+            ], 500);
+        }
     }
-}
     // chỉ update riêng trường task_time
     public function updateTaskTime(Request $request, $task_id)
     {
@@ -674,4 +729,15 @@ public function updateStatus(Request $request, $task_id)
             ], 500);
         }
     }
+
+    public function getRunningTasks()
+    {
+        $tasks = Task::whereHas('worktime', function ($query) {
+            $query->where('status', 'runing')
+                ->orWhere('status', '2');
+        })->get();  
+
+        return response()->json($tasks);
+    }
+    
 }

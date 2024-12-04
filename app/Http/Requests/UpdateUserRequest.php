@@ -22,14 +22,14 @@ class UpdateUserRequest extends FormRequest
      */
     public function rules()
     {
+        // Các quy tắc xác thực cho request
         return [
-            'fullname' => 'sometimes|string|max:255',
-            'email' => 'sometimes|string|email|max:255|unique:users,email,' . $this->route('id'),
-            'password' => 'sometimes|string|min:6|confirmed',
-            'avatar' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048', // Vẫn cho phép cập nhật avatar
-            'role_id' => 'sometimes|integer|exists:roles,id',
-            'phone_number' => 'sometimes|digits:10|unique:users,phone_number,' . $this->route('id'), // Thêm validation cho phone_number
-
+            'fullname' => 'required|string|max:255',
+            'email' => 'required|string|email|max:255|unique:users',
+            'password' => 'required|string|min:6',
+            'avatar' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048', // Thêm quy tắc cho ảnh đại diện
+            'phone_number' => 'nullable|numeric|unique:users,phone_number', // Thêm xác thực cho số điện thoại
+            'create_by' => 'sometimes|nullable|integer|between:1000,9999', // Thêm quy tắc cho create_by nếu cần
         ];
     }
 

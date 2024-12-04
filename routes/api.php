@@ -86,6 +86,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/departments/{id}/force', [DepartmentController::class, 'forceDelete']);
     Route::get('/trashed-departments', [DepartmentController::class, 'getTrashed']);
     Route::put('/departments/{id}/restore', [DepartmentController::class, 'restore']);
+    Route::get('/departments/{department_id}/confirm/{token}', [DepartmentController::class, 'confirmUser']);
+    Route::get('/departments/{department_id}/users', [DepartmentController::class, 'getUsersWithStatus']);
+    Route::delete('/departments/{department_id}/users/{user_id}', [DepartmentController::class, 'removeUserFromDepartment']);
 
     // Projects
     Route::get('/projects', [ProjectController::class, 'index']);
@@ -119,6 +122,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/tasks/{task_id}/worktime', [TaskController::class, 'updateWorktimeId']);
     Route::put('/tasks/{task_id}/status', [TaskController::class, 'updateStatus']);
     Route::put('/tasks/{task_id}/tasktime', [TaskController::class, 'updateTaskTime']);
+    Route::get('/tasks/by-project/{projectId}', [TaskController::class, 'getTasksByProject']);
+    Route::get('/tasks/by-running/{id}', [TaskController::class, 'getRunningTasks']);
 
 
     // Assignments

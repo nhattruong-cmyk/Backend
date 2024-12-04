@@ -9,20 +9,21 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class Task extends Model
 {
     use HasFactory;
-    protected $fillable = ['task_name', 'description', 'status', 'start_date', 'end_date', 'project_id', 'task_time', 'location_task', 'worktime_id'];
+    protected $fillable = ['task_name', 'description', 'status', 'start_date', 'end_date', 'project_id', 'task_time', 'location_task', 'worktime_id', 'user_id'];
     use SoftDeletes;
-    public function users()
-    {
-        return $this->belongsToMany(User::class, 'task_user', 'task_id', 'user_id')
-                    ->withTimestamps();
-    }
-    
     public function projects()
     {
-        return $this->belongsToMany(Project::class, 'task_project', 'task_id', 'project_id')
-                    ->withTimestamps();
+        return $this->belongsToMany(Project::class, 'project_task', 'task_id', 'project_id')
+            ->withTimestamps();
     }
-    
+
+    // Model Task
+// Trong model Task
+public function worktime()
+{
+    return $this->belongsTo(Worktimes::class, 'worktime_id');  // Chú ý đến 'worktime_id'
+}
+
 
     public function departments()
     {
@@ -35,7 +36,11 @@ class Task extends Model
         return $this->hasMany(Assignment::class);
     }
 
-
+    public function users()
+    {
+        return $this->belongsToMany(User::class, 'task_user', 'task_id', 'user_id')
+            ->withTimestamps();
+    }
     public function files()
     {
         return $this->hasMany(File::class, 'task_id'); // Liên kết với bảng files qua task_id
@@ -72,6 +77,4 @@ class Task extends Model
         // Đặt giá trị status thành 0 (pending) nếu không tìm thấy
         $this->attributes['status'] = $statuses[$value] ?? 1;
     }
-
-
 }

@@ -8,16 +8,39 @@ use App\Models\Worktimes;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use App\Models\ActivityLog;
+use App\Model\Task;
 
 
 class WorktimesController extends Controller
 {
 
-    public function index()
+    public function index(Request $request)
     {
-        $worktimes = Worktimes::with('user')->get();
+        // Kiểm tra quyền xem Worktimes thông qua Policy
+        $this->authorize('viewAny', Worktimes::class);
+    
+        // Truy vấn dữ liệu Worktimes theo quyền của user
+        if ($request->user()->role_id === 1 || $request->user()->role_id === 2) {
+            // Admin và Manager có thể xem tất cả Worktimes
+            $worktimes = Worktimes::with('user')->get();
+        } elseif ($request->user()->role_id === 3) {
+            // Staff có thể xem Worktimes tùy thuộc vào các điều kiện
+            if (!is_null($request->user()->create_by)) {
+                // Nếu Staff có create_by, họ có thể xem các Worktime mà họ đã tạo
+                $worktimes = Worktimes::where('user_id', $request->user()->id)->with('user')->get();
+            } else {
+                // Nếu Staff không có create_by, họ chỉ có thể xem Worktimes của dự án mà họ tham gia
+                $worktimes = Worktimes::where('project_id', $request->user()->id)->with('user')->get();
+            }
+        } else {
+            // Nếu không có quyền, trả về lỗi
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+    
+        // Trả về kết quả sau khi đã phân quyền
         return response()->json($worktimes, 200);
     }
+    
 
     public function store(StoreWorktimesRequest $request)
     {
@@ -132,10 +155,23 @@ class WorktimesController extends Controller
                 'status' => 'sometimes|required|integer|in:1,2,3', // Các trạng thái hợp lệ
             ]);
 
-            // Tìm task theo ID
+            // Tìm worktime theo ID
             $worktime = Worktimes::findOrFail($id);
 
-            // Lưu trạng thái mới vào task
+            // Kiểm tra tất cả các task có worktime_id là $id, và kiểm tra trạng thái của chúng
+            $tasks = Task::where('worktime_id', $id)->get(); // Lấy tất cả các task có worktime_id là $id
+
+            // Kiểm tra xem có task nào có trạng thái khác 'done' không
+            foreach ($tasks as $task) {
+                if ($task->status !== 'done') {
+                    // Nếu có task nào không phải 'done', không cho phép cập nhật trạng thái worktime
+                    return response()->json([
+                        'error' => 'You can only update the worktime status to 3 or complete when all tasks are done.',
+                    ], 400);
+                }
+            }
+
+            // Lưu trạng thái mới vào worktime
             $newStatus = $request->input('status');
             $oldStatus = $worktime->status;
 
@@ -156,7 +192,7 @@ class WorktimesController extends Controller
                 ]), // Ghi lại thay đổi trạng thái
             ]);
 
-            // Trả về JSON response với task đã cập nhật
+            // Trả về JSON response với worktime đã cập nhật
             return response()->json([
                 'message' => 'Worktime status updated successfully!',
                 'worktime' => $worktime,
