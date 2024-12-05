@@ -9,6 +9,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use App\Models\ActivityLog;
 use App\Models\Task;
+use Illuminate\Support\Facades\DB;
 
 
 class WorktimesController extends Controller
@@ -17,7 +18,7 @@ class WorktimesController extends Controller
     public function index(Request $request)
     {
         // Kiểm tra quyền xem Worktimes thông qua Policy
-        $this->authorize('viewAny', Worktimes::class);
+        // $this->authorize('viewAny', Worktimes::class);
     
         // Truy vấn dữ liệu Worktimes theo quyền của user
         if ($request->user()->role_id === 1 || $request->user()->role_id === 2) {
@@ -28,10 +29,21 @@ class WorktimesController extends Controller
             if (!is_null($request->user()->create_by)) {
                 // Nếu Staff có create_by, họ có thể xem các Worktime mà họ đã tạo
                 $worktimes = Worktimes::where('user_id', $request->user()->id)->with('user')->get();
-            } else {
-                // Nếu Staff không có create_by, họ chỉ có thể xem Worktimes của dự án mà họ tham gia
-                $worktimes = Worktimes::where('project_id', $request->user()->id)->with('user')->get();
+            } elseif (is_null($request->user()->create_by)) {
+                // Lấy các phòng ban mà user thuộc về
+                $userDepartments = $request->user()->departments()->pluck('department_id')->toArray();
+                
+                // Lấy các project mà các phòng ban này tham gia thông qua bảng project_department
+                $projects = DB::table('project_department')
+                    ->whereIn('department_id', $userDepartments)
+                    ->pluck('project_id')->toArray();
+            
+                // Lấy các worktimes có project_id trong danh sách các project mà user tham gia
+                $worktimes = Worktimes::whereIn('project_id', $projects)
+                    ->with('user')  // Kết hợp thông tin người dùng
+                    ->get();
             }
+            
         } else {
             // Nếu không có quyền, trả về lỗi
             return response()->json(['error' => 'Unauthorized'], 403);
@@ -144,22 +156,25 @@ class WorktimesController extends Controller
             // Tìm worktime theo ID
             $worktime = Worktimes::findOrFail($id);
 
-            // Kiểm tra tất cả các task có worktime_id là $id, và kiểm tra trạng thái của chúng
-            $tasks = Task::where('worktime_id', $id)->get(); // Lấy tất cả các task có worktime_id là $id
-
-            // Kiểm tra xem có task nào có trạng thái khác 'done' không
-            foreach ($tasks as $task) {
-                if ($task->status !== 'done') {
-                    // Nếu có task nào không phải 'done', không cho phép cập nhật trạng thái worktime
-                    return response()->json([
-                        'error' => 'You can only update the worktime status to 3 or complete when all tasks are done.',
-                    ], 400);
-                }
-            }
-
-            // Lưu trạng thái mới vào worktime
+            // Lấy trạng thái mới và cũ
             $newStatus = $request->input('status');
             $oldStatus = $worktime->status;
+
+            // Kiểm tra điều kiện: chỉ kiểm tra trạng thái của các task khi trạng thái mới là 3
+            if ($newStatus == 3 && $oldStatus != 3) {
+                // Kiểm tra tất cả các task có worktime_id là $id, và kiểm tra trạng thái của chúng
+                $tasks = Task::where('worktime_id', $id)->get(); // Lấy tất cả các task có worktime_id là $id
+
+                // Kiểm tra xem có task nào có trạng thái khác 'done' không
+                foreach ($tasks as $task) {
+                    if ($task->status !== 'done') {
+                        // Nếu có task nào không phải 'done', không cho phép cập nhật trạng thái worktime
+                        return response()->json([
+                            'error' => 'You can only update the worktime status to 3 or complete when all tasks are done.',
+                        ], 400);
+                    }
+                }
+            }
 
             // Cập nhật trạng thái
             $worktime->update(['status' => $newStatus]);
@@ -194,7 +209,6 @@ class WorktimesController extends Controller
             ], 500);
         }
     }
-
     public function trashedWorktimes()
     {
         $trashedWorktimes = Worktimes::onlyTrashed()->get();
