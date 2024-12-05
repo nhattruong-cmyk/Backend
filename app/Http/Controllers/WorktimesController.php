@@ -8,7 +8,7 @@ use App\Models\Worktimes;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use App\Models\ActivityLog;
-use App\Model\Task;
+use App\Models\Task;
 
 
 class WorktimesController extends Controller
@@ -117,32 +117,18 @@ class WorktimesController extends Controller
     public function destroy($id)
     {
         try {
-            // Tìm Worktime theo ID
+            // Tìm assignment theo ID
             $worktime = Worktimes::findOrFail($id);
-
-            // Kiểm tra xem worktime có dính khóa ngoại với tasks hay không
-            $tasksCount = $worktime->tasks()->count(); // Đếm số lượng tasks liên quan
-
-            if ($tasksCount > 0) {
-                return response()->json([
-                    'error' => 'Cannot delete worktime because it is associated with tasks.'
-                ], 400); // 400 Bad Request
-            }
-
-            // Xóa mềm (soft delete)
+    
+            // Phân quyền xóa phân công
+            $this->authorize('delete', $worktime); // Truyền assignment vào để phân quyền
+    
+            // Thực hiện xóa mềm
             $worktime->delete();
-
-            return response()->json([
-                'message' => 'Worktime soft deleted successfully',
-            ], 200);
-        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
-            return response()->json([
-                'error' => 'Worktime not found.'
-            ], 404); // 404 Not Found
+    
+            return response()->json(['message' => 'Xóa phân công mềm thành công'], 200);
         } catch (\Exception $e) {
-            return response()->json([
-                'error' => 'Failed to soft delete worktime: ' . $e->getMessage()
-            ], 500); // 500 Internal Server Error
+            return response()->json(['error' => 'Xóa phân công thất bại: ' . $e->getMessage()], 500);
         }
     }
 

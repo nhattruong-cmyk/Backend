@@ -6,6 +6,7 @@ use App\Models\Task;
 use App\Models\Project;
 use App\Models\Worktimes;
 use Illuminate\Support\Facades\Log;
+use App\Models\Assignment;
 
 use App\Models\Department;
 use App\Models\ActivityLog;
@@ -738,6 +739,32 @@ class TaskController extends Controller
         })->get();  
 
         return response()->json($tasks);
+    }
+    public function getTaskWithUser($taskId)
+    {
+        try {
+            // Lấy thông tin task theo ID
+            $task = Task::findOrFail($taskId);
+
+            // Lấy tất cả người dùng được phân công cho task
+            $assignedUsers = Assignment::where('task_id', $taskId)
+                ->with('user') // Kết hợp thông tin người dùng
+                ->get()
+                ->map(function ($assignment) {
+                    return $assignment->user; // Trả về thông tin người dùng (có thể thêm các trường khác nếu cần)
+                });
+
+            // Trả về kết quả dưới dạng JSON
+            return response()->json([
+                'task' => $task,
+                'assigned_users' => $assignedUsers
+            ], 200);
+        } catch (\Exception $e) {
+            // Trả về lỗi nếu có bất kỳ ngoại lệ nào
+            return response()->json([
+                'error' => 'Không tìm thấy task hoặc có lỗi khi lấy dữ liệu: ' . $e->getMessage()
+            ], 500);
+        }
     }
     
 }

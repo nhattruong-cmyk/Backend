@@ -124,6 +124,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/tasks/{task_id}/tasktime', [TaskController::class, 'updateTaskTime']);
     Route::get('/tasks/by-project/{projectId}', [TaskController::class, 'getTasksByProject']);
     Route::get('/tasks/by-running/{id}', [TaskController::class, 'getRunningTasks']);
+    Route::get('/tasks/{id}/get-task-with-user', [TaskController::class, 'getTaskWithUser']);
 
 
     // Assignments

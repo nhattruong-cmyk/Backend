@@ -593,13 +593,14 @@ class UserController extends Controller
         }
         $token = $user->createToken('auth_token')->plainTextToken;
         $roleName = $user->role ? $user->role->name : null;
-
+        $userId = $user->id;
         return response()->json([
             'status' => 'success',
             'message' => 'Login successful',
             'access_token' => $token,
             'token_type' => 'Bearer',
-            'role' => $roleName, // Trả về tên role của người dùng
+            'role' => $roleName,
+            'user_id' => $userId,
         ]);
     }
 

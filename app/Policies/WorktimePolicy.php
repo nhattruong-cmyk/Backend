@@ -25,9 +25,9 @@ class WorktimePolicy
             return true;
         }
     
-        // Staff với create_by không rỗng có thể xem Worktime thuộc về họ hoặc phòng ban họ quản lý
+        // Staff với create_by không rỗng có thể xem Worktime thuộc về họ hoặc worktime họ quản lý
         if ($user->role_id === 3 && !is_null($user->create_by)) {
-            // Kiểm tra xem user có thuộc phòng ban nào không
+            // Kiểm tra xem user có thuộc worktime nào không
             if ($user->departments()->exists()) {
                 return true;
             }
@@ -64,7 +64,7 @@ class WorktimePolicy
 
         // Staff chỉ có thể xem project mà họ thuộc về hoặc họ đã tạo
         if ($user->role_id === 3) {
-            // Kiểm tra xem user có thuộc phòng ban nào không
+            // Kiểm tra xem user có thuộc worktime nào không
             if ($user->departments()->exists()) {
                 return true;
             }
@@ -130,30 +130,30 @@ class WorktimePolicy
      */
     public function delete(User $user, Worktimes $Worktime): bool
     {
-        // Admin có thể xóa bất kỳ phòng ban nào
+        // Admin có thể xóa bất kỳ worktime nào
         if ($user->role_id === 1) {
             return true;
         }
 
-        // Manager có thể xóa phòng ban nếu họ quản lý phòng ban đó
+        // Manager có thể xóa worktime nếu họ quản lý worktime đó
         if ($user->role_id === 2) {
             return true;
         }
 
-        // Staff có thể xóa mềm phòng ban nếu có cột create_by và có dữ liệu
+        // Staff có thể xóa mềm worktime nếu có cột create_by và có dữ liệu
         if ($user->role_id === 3 && !is_null($user->create_by)) {
             // Nếu cột create_by có giá trị, cho phép xóa mềm (soft delete)
-            $Worktime->delete(); // Xóa mềm phòng ban
+            $Worktime->delete(); // Xóa mềm worktime
             return true;
         }
-        // Staff có thể xóa mềm phòng ban nếu có cột create_by và có dữ liệu
+        // Staff có thể xóa mềm worktime nếu có cột create_by và có dữ liệu
         if ($user->role_id === 3 && is_null($user->create_by)) {
             // Nếu cột create_by có giá trị, cho phép xóa mềm (soft delete)
-            $Worktime->delete(); // Xóa mềm phòng ban
+            $Worktime->delete(); // Xóa mềm worktime
             return true;
         }
 
-        // Staff không có quyền xóa phòng ban nếu không có cột create_by
+        // Staff không có quyền xóa worktime nếu không có cột create_by
         return false;
     }
 
@@ -165,31 +165,31 @@ class WorktimePolicy
 
     public function restore(User $user, Worktimes $Worktime): bool
     {
-        // Admin có thể xóa bất kỳ phòng ban nào
+        // Admin có thể xóa bất kỳ worktime nào
         if ($user->role_id === 1) {
             return true;
         }
 
-        // Manager có thể xóa phòng ban nếu họ quản lý phòng ban đó
+        // Manager có thể xóa worktime nếu họ quản lý worktime đó
         if ($user->role_id === 2) {
             return true;
         }
 
-        // Staff có thể xóa mềm phòng ban nếu có cột create_by và có dữ liệu
+        // Staff có thể xóa mềm worktime nếu có cột create_by và có dữ liệu
         if ($user->role_id === 3 && !is_null($user->create_by)) {
             // Nếu cột create_by có giá trị, cho phép xóa mềm (soft delete)
-            $Worktime->restore(); // Xóa mềm phòng ban
+            $Worktime->restore(); // Xóa mềm worktime
             return true;
         }
 
-        // Staff có thể xóa mềm phòng ban nếu có cột create_by và có dữ liệu
+        // Staff có thể xóa mềm worktime nếu có cột create_by và có dữ liệu
         if ($user->role_id === 3 && is_null($user->create_by)) {
             // Nếu cột create_by có giá trị, cho phép xóa mềm (soft delete)
-            $Worktime->restore(); // Xóa mềm phòng ban
+            $Worktime->restore(); // Xóa mềm worktime
             return true;
         }
 
-        // Staff không có quyền xóa phòng ban nếu không có cột create_by
+        // Staff không có quyền xóa worktime nếu không có cột create_by
         return false;
     }
 
