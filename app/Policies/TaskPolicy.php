@@ -230,4 +230,51 @@ class TaskPolicy
         // Mặc định trả về false nếu không có quyền
         return false;
     }
+
+    // App/Policies/TaskPolicy.php
+
+    public function viewWithoutWorktime(User $user): bool
+    {
+        // Admin có thể xem tất cả các task không có worktime_id
+        if ($user->role_id === 1) {
+            return true;
+        }
+
+        // Manager có thể xem tất cả các task không có worktime_id
+        if ($user->role_id === 2) {
+            return true;
+        }
+
+        // Staff có thể xem các task không có worktime_id mà họ tạo hoặc thuộc department của họ
+        if ($user->role_id === 3) {
+            return true;
+        }
+
+        // Mặc định không cho phép xem
+        return false;
+    }
+
+
+    // App/Policies/TaskPolicy.php
+    public function viewTasksByWorktimeId(User $user, $worktimeId): bool
+    {
+        // Admin có thể xem tất cả các task theo worktime_id
+        if ($user->role_id === 1) {
+            return true;
+        }
+
+        // Manager có thể xem tất cả các task theo worktime_id
+        if ($user->role_id === 2) {
+            return true;
+        }
+
+        // Staff có thể xem task theo worktime_id nếu họ đã tạo task hoặc nếu task thuộc department của họ
+        if ($user->role_id === 3) {
+            // Kiểm tra các điều kiện bổ sung ở đây (ví dụ: check các department user tham gia)
+            return true; // Điều kiện này có thể thay đổi tuỳ vào yêu cầu thực tế
+        }
+
+        // Mặc định không cho phép xem
+        return false;
+    }
 }

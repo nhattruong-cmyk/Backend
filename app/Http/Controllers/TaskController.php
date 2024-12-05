@@ -314,12 +314,39 @@ class TaskController extends Controller
         }
     }
 
-    // lấy danh sách task không có worktime
-    public function getTaskWithoutWorktime()
+    public function getTaskWithoutWorktime(Request $request)
     {
-        $tasks = Task::with('projects', 'departments', 'files')->whereNull('worktime_id')->get();
+        // Kiểm tra quyền xem task không có worktime_id (sử dụng Policy)
+        $this->authorize('viewWithoutWorktime', Task::class);
+    
+        // Nếu là Admin hoặc Manager, lấy tất cả các task không có worktime_id
+        if ($request->user()->role_id === 1 || $request->user()->role_id === 2) {
+            $tasks = Task::whereNull('worktime_id')->get();
+        }
+    
+        // Nếu là Staff, lấy các task không có worktime_id mà họ đã tạo hoặc liên quan đến các department họ tham gia
+        if ($request->user()->role_id === 3) {
+            // Lấy các task mà user đã tạo và không có worktime_id
+            $createdTasks = Task::where('user_id', $request->user()->id)
+                ->whereNull('worktime_id')
+                ->get();
+    
+            // Lấy tất cả các department mà user tham gia
+            $departments = $request->user()->departments;
+    
+            // Lấy tất cả task trong các department mà user tham gia và không có worktime_id
+            $relatedTasks = $departments->flatMap(function ($department) {
+                return $department->tasks()->whereNull('worktime_id')->get();
+            });
+    
+            // Kết hợp các task đã tạo và các task liên quan đến các department mà user tham gia
+            $tasks = $createdTasks->merge($relatedTasks)->unique('id');
+        }
+    
         return response()->json($tasks, 200);
     }
+    
+    
 
     // cập nhật vị trí task
     public function updateLocationTask(Request $request, $task_id)
@@ -551,31 +578,51 @@ class TaskController extends Controller
     }
 
     // lấy danh sách task từ worktime_id
-    public function getTasksByWorktimeId($id = null)
+    public function getTasksByWorktimeId(Request $request, $id = null)
     {
+        // Kiểm tra quyền xem các task theo worktime_id (sử dụng Policy)
+        $this->authorize('viewTasksByWorktimeId', [Task::class, $id]);
+    
+        // Kiểm tra nếu không có worktime_id được cung cấp
         if (is_null($id)) {
             return response()->json([
                 'message' => 'No worktime_id provided.',
                 'tasks' => [],
             ], 200);
         }
-
-        $tasks = Task::where('worktime_id', $id)
-            ->with('assignments')
-            ->get();
-
-        if ($tasks->isEmpty()) {
-            return response()->json([
-                'message' => 'No tasks found for this worktime_id.',
-                'tasks' => [],
-            ], 200);
+    
+        // Nếu là Admin hoặc Manager, lấy tất cả các task có worktime_id tương ứng
+        if ($request->user()->role_id === 1 || $request->user()->role_id === 2) {
+            $tasks = Task::where('worktime_id', $id)->get();
         }
-
+    
+        // Nếu là Staff, lấy các task mà họ đã tạo và các task liên quan đến department mà họ tham gia
+        if ($request->user()->role_id === 3) {
+            // Lấy các task mà user đã tạo và có worktime_id
+            $createdTasks = Task::where('user_id', $request->user()->id)
+                ->where('worktime_id', $id)
+                ->get();
+    
+            // Lấy tất cả các department mà user tham gia
+            $departments = $request->user()->departments;
+    
+            // Lấy tất cả task trong các department mà user tham gia và có worktime_id
+            $relatedTasks = $departments->flatMap(function ($department) use ($id) {
+                return $department->tasks()->where('worktime_id', $id)->get();
+            });
+    
+            // Kết hợp các task đã tạo và các task liên quan đến các department mà user tham gia
+            $tasks = $createdTasks->merge($relatedTasks)->unique('id');
+        }
+    
         return response()->json([
             'worktime_id' => $id,
             'tasks' => $tasks,
         ], 200);
     }
+    
+    
+    
 
     // cập nhật worktime_id (có thể rỗng)
     public function updateWorktimeId(Request $request, $task_id)
