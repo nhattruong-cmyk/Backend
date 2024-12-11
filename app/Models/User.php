@@ -123,5 +123,10 @@ class User extends Authenticatable implements MustVerifyEmail
         // Liên kết với bảng assignments và lọc bằng cột taskmaster
         return $this->hasMany(Assignment::class, 'taskmaster', 'id');
     }
-    
+
+    public function comments()
+    {
+        return $this->hasMany(Comment::class)
+            ->with(['user', 'replies.user', 'files']); // Tải trước các quan hệ liên quan
+    }
 }

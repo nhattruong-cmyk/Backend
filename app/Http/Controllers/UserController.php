@@ -30,6 +30,8 @@ use Google\Client;
 use Illuminate\Support\Facades\Http;
 use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
+use App\Models\Comment;
+
 
 class UserController extends Controller
 {
@@ -65,20 +67,24 @@ class UserController extends Controller
             return response()->json(['message' => 'User not found'], 404);
         }
 
-        // Admin có thể xem thông tin của tất cả mọi người
-        if ($user->hasRole('Admin')) {
-            return response()->json($requestedUser);
-        }
+        if ($user->role_id == 1 || $user->role_id == 2) {  // Admin
+            return response()->json($requestedUser); // Admin sees all details
+        } elseif ($user->role_id == 3) {  // Manager or Staff
+            $sharedTasks = $user->tasks->pluck('id');
+            $isSameTask = Comment::whereIn('task_id', $sharedTasks)->where('user_id', $requestedUser->id)->exists();
 
-        // Manager có thể xem thông tin của staff hoặc chính mình
-
-        if ($user->hasRole('Manager') && ($requestedUser->hasRole('Staff') || $user->id == $requestedUser->id)) {
-            return response()->json($requestedUser);
-        }
-
-        // Staff chỉ được xem thông tin của chính mình
-        if ($user->hasRole('Staff') && $user->id == $requestedUser->id) {
-            return response()->json($requestedUser);
+            if ($isSameTask || $requestedUser->role_id == 1) {
+                return response()->json([
+                    'fullname' => $requestedUser->fullname,
+                    'role' => $requestedUser->role_id,
+                    'comments' => $requestedUser->comments->map(function ($comment) {
+                        return [
+                            'content' => $comment->content,
+                            'task_id' => $comment->task_id,
+                        ];
+                    }),
+                ]);
+            }
         }
 
         return response()->json(['message' => 'Unauthorized'], 403);
@@ -265,8 +271,16 @@ class UserController extends Controller
         // Lấy dữ liệu đã xác thực từ request
         $updatedData = $request->validated();
 
-        // Bỏ qua bất kỳ thay đổi nào liên quan đến avatar
+        // Bỏ qua bất kỳ thay đổi nào liên quan đến avatar và mật khẩu, email nếu không có trong request
         unset($updatedData['avatar']); // Không cập nhật avatar
+
+        if (!$request->has('password')) {
+            unset($updatedData['password']); // Không thay đổi mật khẩu nếu không có trong request
+        }
+
+        if (!$request->has('email')) {
+            unset($updatedData['email']); // Không thay đổi email nếu không có trong request
+        }
 
         // Kiểm tra và chuyển đổi số điện thoại nếu có
         if (isset($updatedData['phone_number'])) {
@@ -288,7 +302,7 @@ class UserController extends Controller
             }
         }
 
-        // Kiểm tra quyền hạn người dùng và chỉ cho phép cập nhật nếu đúng điều kiện
+        // Tiếp tục kiểm tra quyền hạn người dùng và cập nhật dữ liệu như bình thường
         if ($user->hasRole('Admin')) {
             // Nếu là Admin, có quyền cập nhật mọi thông tin, bao gồm cả role
             $requestedUser->update($updatedData);
@@ -601,6 +615,7 @@ class UserController extends Controller
             'token_type' => 'Bearer',
             'role' => $roleName,
             'user_id' => $userId,
+            'fullname' => $user->fullname,
         ]);
     }
 
@@ -739,6 +754,9 @@ class UserController extends Controller
         } catch (\Exception $e) {
             return response()->json(['message' => 'Error processing Google login', 'error' => $e->getMessage()], 500);
         }
+    }
+    public function hello(){
+        return response()->json('hello world!');
     }
     
 }

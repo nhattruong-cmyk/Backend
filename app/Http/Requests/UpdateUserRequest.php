@@ -23,14 +23,24 @@ class UpdateUserRequest extends FormRequest
     public function rules()
     {
         // Các quy tắc xác thực cho request
-        return [
+        $rules = [
             'fullname' => 'required|string|max:255',
-            'email' => 'required|string|email|max:255|unique:users',
-            'password' => 'required|string|min:6',
+            'phone_number' => 'nullable|numeric|unique:users,phone_number', // Kiểm tra trùng số điện thoại
             'avatar' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048', // Thêm quy tắc cho ảnh đại diện
-            'phone_number' => 'nullable|numeric|unique:users,phone_number', // Thêm xác thực cho số điện thoại
             'create_by' => 'sometimes|nullable|integer|between:1000,9999', // Thêm quy tắc cho create_by nếu cần
         ];
+
+        // Kiểm tra nếu email có thay đổi không
+        if ($this->has('email')) {
+            $rules['email'] = 'required|string|email|max:255|unique:users,email,' . $this->route('id'); // Chỉ kiểm tra email nếu thay đổi
+        }
+
+        // Kiểm tra nếu password có thay đổi không
+        if ($this->has('password')) {
+            $rules['password'] = 'nullable|string|min:6'; // Mật khẩu là tùy chọn khi cập nhật
+        }
+
+        return $rules;
     }
 
 

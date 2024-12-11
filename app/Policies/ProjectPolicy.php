@@ -10,9 +10,7 @@ use Illuminate\Support\Facades\DB;
 
 class ProjectPolicy
 {
-    /**
-     * Determine whether the user can view any models.
-     */
+
     public function viewAny(User $user): bool
     {
         // Admin có thể xem tất cả project
@@ -40,9 +38,6 @@ class ProjectPolicy
         return false;
     }
 
-    /**
-     * Determine whether the user can view the model.
-     */
     public function view(User $user, Project $project): bool
     {
         // Admin có thể xem bất kỳ project nào
@@ -70,18 +65,12 @@ class ProjectPolicy
         return false;
     }
 
-    /**
-     * Determine whether the user can create models.
-     */
     public function create(User $user): bool
     {
         // Chỉ Admin, Manager, và Staff (role_id = 3 và có create_by) mới có thể tạo project
         return ($user->role_id === 1 || $user->role_id === 2 || ($user->role_id === 3 && $user->create_by !== null));
     }
 
-    /**
-     * Determine whether the user can update the model.
-     */
     public function update(User $user, Project $project): bool
     {
         // Admin có thể cập nhật bất kỳ project nào
@@ -101,34 +90,39 @@ class ProjectPolicy
         return false;
     }
 
-    /**
-     * Determine whether the user can delete the model.
-     */
-    public function delete(User $user, Project $project): bool
+    public function delete(User $user, Project $project)
     {
-        // Admin có thể xóa bất kỳ phòng ban nào
-        if ($user->role_id === 1) {
-            return true;
+        // Kiểm tra xem người dùng là Admin (role_id = 1) hoặc Manager (role_id = 2)
+        if ($user->role_id === 1 || $user->role_id === 2) {
+            return true; // Admin và Manager có quyền xóa bất kỳ dự án nào
         }
-
-        // Manager có thể xóa phòng ban nếu họ quản lý phòng ban đó
-        if ($user->role_id === 2) {
-            return true;
+    
+        // Kiểm tra đối với Staff (role_id = 3)
+        if ($user->role_id === 3) {
+            // Kiểm tra trạng thái của dự án (phải là 1 hoặc 4)
+            if (!in_array($project->status, [1, 4])) {
+                return response()->json(['message' => 'You can only delete projects with status 1 or 4.'], 403); // Trạng thái dự án không hợp lệ
+            }
+    
+            // Kiểm tra xem dự án có phòng ban nào không
+            if ($project->departments()->count() > 0) {
+                return response()->json(['message' => 'You cannot delete this project because it has departments.'], 403); // Dự án có phòng ban
+            }
+    
+            // Kiểm tra xem cột create_by có phải là mảng hay không
+            if (!is_array($user->create_by)) {
+                return response()->json(['message' => 'You cannot delete this project because create_by is not an array.'], 403); // create_by không phải là mảng
+            }
+    
+            // Nếu tất cả các điều kiện đều thỏa mãn, cho phép xóa
+            $project->delete(); // Xóa dự án (hoặc thực hiện soft delete nếu cần)
+            return response()->json(['message' => 'Project deleted successfully.'], 200);
         }
-
-        // Staff có thể xóa mềm phòng ban nếu có cột create_by và có dữ liệu
-        if ($user->role_id === 3 && !is_null($user->create_by)) {
-            // Nếu cột create_by có giá trị, cho phép xóa mềm (soft delete)
-            $project->delete(); // Xóa mềm phòng ban
-            return true;
-        }
-
-        // Staff không có quyền xóa phòng ban nếu không có cột create_by
-        return false;
+    
+        // Trả về lỗi nếu không thỏa mãn các điều kiện trên
+        return response()->json(['message' => 'You do not have permission to delete this project.'], 403);
     }
-    /**
-     * Determine whether the user can restore the model.
-     */
+    
     public function restore(User $user, Project $project): bool
     {
         // Admin có thể xóa bất kỳ phòng ban nào
@@ -152,9 +146,6 @@ class ProjectPolicy
         return false;
     }
 
-    /**
-     * Determine whether the user can permanently delete the model.
-     */
     public function forceDelete(User $user, Project $project): bool
     {
         // Admin có thể xóa bất kỳ phòng ban nào

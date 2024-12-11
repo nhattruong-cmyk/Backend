@@ -29,7 +29,7 @@ class Comment extends Model
     // Một bình luận có thể có nhiều phản hồi (comments con)
     public function replies()
     {
-        return $this->hasMany(Comment::class, 'parent_id')->with('replies');
+        return $this->hasMany(Comment::class, 'parent_id')->orderBy('created_at', 'DESC');
     }
 
     // Bình luận cha của phản hồi

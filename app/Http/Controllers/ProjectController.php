@@ -271,31 +271,30 @@ class ProjectController extends Controller
         }
     }
 
-
     public function destroy($id)
     {
         try {
             // Lấy thông tin người dùng hiện tại
             $user = auth()->user();
-
+    
             // Tìm Project theo ID
             $project = Project::findOrFail($id);
-
+    
             // Kiểm tra quyền của người dùng đối với dự án (sử dụng Policy)
             $this->authorize('delete', $project); // Kiểm tra quyền xóa dự án thông qua ProjectPolicy
-
+    
             // Kiểm tra xem project có liên kết với departments hay không
             $departmentsCount = $project->departments()->count(); // Đếm số lượng departments liên quan
-
+    
             if ($departmentsCount > 0) {
                 return response()->json([
                     'error' => 'Cannot delete project because it is associated with departments.'
                 ], 400); // 400 Bad Request
             }
-
+    
             // Xóa mềm (soft delete)
             $project->delete();
-
+    
             // Ghi lại lịch sử hoạt động sau khi xóa dự án
             ActivityLog::create([
                 'user_id' => Auth::user()->id, // Người thực hiện hành động
@@ -304,20 +303,25 @@ class ProjectController extends Controller
                 'action' => 'soft_deleted', // Hành động xóa mềm
                 'changes' => json_encode(['deleted_project_id' => $project->id]), // Lưu ID của dự án bị xóa
             ]);
-
+    
             return response()->json([
                 'message' => 'Project soft deleted successfully',
             ], 200);
-        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+        } catch (\Illuminate\Auth\Access\AuthorizationException $e) {
+            // Nếu không có quyền xóa, trả về lỗi
             return response()->json([
-                'error' => 'Project not found.'
-            ], 404); // 404 Not Found
-        } catch (Exception $e) {
+                'error' => 'You do not have permission to delete this project.'
+            ], 403); // 403 Forbidden
+        } catch (\Exception $e) {
+            // Xử lý lỗi khác
             return response()->json([
-                'error' => 'Failed to soft delete project: ' . $e->getMessage()
+                'error' => 'Failed to delete project: ' . $e->getMessage()
             ], 500); // 500 Internal Server Error
         }
     }
+    
+    
+    
 
 
     public function restore($id)

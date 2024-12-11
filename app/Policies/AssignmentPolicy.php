@@ -60,32 +60,32 @@ class AssignmentPolicy
      */
     public function view(User $user, Assignment $assignment): bool
     {
-        // Admin có thể xem tất cả project
+        // Admin có thể xem tất cả phân công
         if ($user->role_id === 1) {
             return true;
         }
-
-        // Manager có thể xem tất cả project
+    
+        // Manager có thể xem tất cả phân công
         if ($user->role_id === 2) {
             return true;
         }
-
-        // Manager có thể xem tất cả project
+    
+        // Staff có thể xem phân công nếu họ thuộc phòng ban của phân công đó
         if ($user->role_id === 3) {
-            return true;
+            // Kiểm tra nếu người dùng thuộc phòng ban của phân công
+            $department = $assignment->department; // Lấy phòng ban của phân công
+    
+            if ($department && $department->users->contains($user->id)) {
+                return true; // Nếu phòng ban chứa người dùng, cho phép xem
+            }
+    
+            // Hoặc kiểm tra nếu người dùng đã tạo ra phân công này (nếu có trường create_by hoặc tương tự)
+            if ($assignment->user_id === $user->id) {
+                return true; // Nếu phân công được tạo bởi người dùng này
+            }
         }
-        // // Staff chỉ có thể xem project mà họ thuộc về hoặc họ đã tạo
-        // if ($user->role_id === 3) {
-        //     // Kiểm tra xem user có thuộc phân công nào không
-        //     if ($user->departments()->exists()) {
-        //         return true;
-        //     }
-
-        //     // Kiểm tra xem user có tạo ra project nào không
-        //     return DB::table('projects')->where('user_id', $user->id)->exists();
-        // }
-
-        // Mặc định không cho phép xem project
+    
+        // Mặc định không cho phép xem phân công nếu không thỏa mãn các điều kiện trên
         return false;
     }
 

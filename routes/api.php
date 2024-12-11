@@ -19,7 +19,7 @@ use App\Http\Controllers\PasswordResetController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ConfirmationController;
 
-
+Route::get('/hello', [UserController::class, 'hello']);
 Route::get('/confirmation/accept/{token}', [ConfirmationController::class, 'accept'])
     ->name('confirmation.accept');
 Route::post('/register', [UserController::class, 'register']);
@@ -33,9 +33,6 @@ Route::post('/forgot-password/reset', [PasswordResetController::class, 'resetPas
 Route::post('/resend-verification-code', [UserController::class, 'resendVerificationCode']);
 Route::post('/auth/google', [UserController::class, 'handleGoogleLogin']);
 // routes/web.php
-
-
-
 
 Route::middleware('auth:sanctum')->group(function () {
 
@@ -125,6 +122,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/tasks/by-project/{projectId}', [TaskController::class, 'getTasksByProject']);
     Route::get('/tasks/by-running/{id}', [TaskController::class, 'getRunningTasks']);
     Route::get('/tasks/{id}/get-task-with-user', [TaskController::class, 'getTaskWithUser']);
+    Route::get('/tasks/{id}/details', [TaskController::class, 'getTaskDetails']);//test tásk
 
 
     // Assignments
@@ -179,7 +177,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/worktimes/{id}', [WorktimesController::class, 'update']);
     Route::delete('/worktimes/{id}', [WorktimesController::class, 'destroy']);
     Route::get('worktimes-trashed', [WorktimesController::class, 'trashedWorktimes'])->name('trashedWorktimes');
-    Route::patch('/worktimes/{id}/restore', [WorktimesController::class, 'restore']);
+    Route::put('/worktimes/{id}/restore', [WorktimesController::class, 'restore']);
     Route::delete('/worktimes/{id}/force', [WorktimesController::class, 'forceDestroy']);
     Route::put('/worktimes/{id}/status', [WorktimesController::class, 'updateStatus']);
 

@@ -4,15 +4,13 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Notification extends Model
 {
     use HasFactory;
-    use SoftDeletes;
-    protected $fillable = ['user_id', 'message', 'is_read'];
 
-    public function user(){
-        return $this->belongsTo(User::class);
-    }
+    // Định nghĩa UUID làm khóa chính
+    protected $keyType = 'string';
+    public $incrementing = false;  // Không tự động tăng cho khóa chính
 }
+

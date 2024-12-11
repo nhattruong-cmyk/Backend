@@ -3,129 +3,79 @@
 namespace App\Http\Controllers;
 
 use App\Models\Notification;
-use Illuminate\Support\Facades\Auth;
-
 use Illuminate\Http\Request;
 
 class NotificationController extends Controller
 {
-    // lấy danh sách thông báo
+    // Lấy tất cả thông báo của người dùng
     public function index()
     {
-        // Lấy tất cả thông báo của người dùng
-        $userId = Auth::id(); // Sử dụng facade Auth để lấy ID người dùng
-        if (!$userId) {
-            return response()->json(['error' => 'User not authenticated.'], 401);
-        }
+        $notifications = auth()->user()->notifications;  // Lấy thông báo của người dùng đã đăng nhập
 
-        $notifications = Notification::where('user_id', $userId)
-            ->where('is_read', false)
-            ->get();;
         return response()->json($notifications);
     }
 
-    // tạo mới 1 thông báo
+    // Lấy thông báo chi tiết
+    public function show($id)
+    {
+        $notification = Notification::findOrFail($id);
+        return response()->json($notification);
+    }
+
+    // Tạo thông báo mới (ví dụ: chỉ khi có admin tạo thông báo)
     public function store(Request $request)
     {
-        // Xác thực dữ liệu đầu vào
+        // Validate input
         $validatedData = $request->validate([
-            'user_id' => 'required|exists:users,id', // Đảm bảo user tồn tại
-            'message' => 'required|string|max:255', // Nội dung thông báo
+            'data' => 'required|array',  // Ví dụ: dữ liệu thông báo dưới dạng mảng
         ]);
 
-        try {
-            // Tạo thông báo mới
-            $notification = Notification::create($validatedData);
-            return response()->json(['message' => 'Notification created successfully', 'notification' => $notification], 201);
-        } catch (\Exception $e) {
-            // Trả về lỗi nếu có
-            return response()->json(['error' => 'Failed to create notification: ' . $e->getMessage()], 500);
-        }
+        $notification = Notification::create([
+            'notifiable_id' => $request->user()->id,  // Gửi cho người dùng hiện tại
+            'notifiable_type' => 'App\Models\User',
+            'data' => json_encode($validatedData['data']),
+        ]);
+
+        return response()->json($notification, 201);
     }
 
-    // lấy thôg tin 1 thông báo
-    public function show(string $id)
-    {
-        //
-    }
-
-    // xát nhận tài khoản đã đọc thông báo
+    // Đánh dấu thông báo là đã đọc
     public function markAsRead($id)
     {
         $notification = Notification::findOrFail($id);
-        $notification->update(['is_read' => true]);
-
-        return response()->json(['message' => 'Notification marked as read'], 200);
+        $notification->markAsRead();  // Sử dụng phương thức markAsRead() của Laravel
+        return response()->json($notification);
     }
 
-    // cập nhật thông tin thôg báo
-    public function update(Request $request, string $id)
+    // Xóa thông báo (soft delete)
+    public function destroy($id)
     {
-        //
+        $notification = Notification::findOrFail($id);
+        $notification->delete();
+        return response()->json(['message' => 'Notification deleted']);
     }
 
-    // hủy diệt một thông bá (xóa mềm)
-    public function destroy(string $id)
+    // Xóa thông báo vĩnh viễn
+    public function forceDelete($id)
     {
-        try {
-            // Tìm notification theo ID
-            $notification = Notification::findOrFail($id);
-
-            // Thực hiện xóa mềm
-            $notification->delete();
-
-            return response()->json(['message' => 'Notification soft deleted'], 200);
-        } catch (\Exception $e) {
-            return response()->json(['error' => 'Failed to soft delete notification: ' . $e->getMessage()], 500);
-        }
+        $notification = Notification::findOrFail($id);
+        $notification->forceDelete();
+        return response()->json(['message' => 'Notification permanently deleted']);
     }
 
-    // xóa cứng thông báo đã xóa mềm
-    public function forceDelete(string $id)
-    {
-        try {
-            // Tìm notification đã bị xóa mềm
-            $notification = Notification::onlyTrashed()->findOrFail($id);
+    // Lấy các thông báo đã bị xóa mềm
 
-            // Thực hiện xóa cứng
-            $notification->forceDelete();
-
-            return response()->json(['message' => 'Notification permanently deleted'], 200);
-        } catch (\Exception $e) {
-            return response()->json(['error' => 'Failed to permanently delete notification: ' . $e->getMessage()], 500);
-        }
-    }
-
-    // lấy dánh sách thông báo đã xóa mềm
     public function getTrashed()
     {
-        try {
-            // Lấy danh sách thông báo đã xóa mềm
-            $trashedNotifications = Notification::onlyTrashed()->get();
-
-            if ($trashedNotifications->isEmpty()) {
-                return response()->json(['message' => 'No trashed notifications found'], 404);
-            }
-
-            return response()->json(['data' => $trashedNotifications], 200);
-        } catch (\Exception $e) {
-            return response()->json(['error' => 'Failed to retrieve trashed notifications: ' . $e->getMessage()], 500);
-        }
+        $trashedNotifications = Notification::onlyTrashed()->get();
+        return response()->json($trashedNotifications);
     }
 
-    // phục hồi thông báo đã xóa mềm
-    public function restore(string $id)
+    // Khôi phục thông báo đã bị xóa mềm
+    public function restore($id)
     {
-        try {
-            // Tìm notification đã xóa mềm
-            $notification = Notification::onlyTrashed()->findOrFail($id);
-
-            // Khôi phục thông báo
-            $notification->restore();
-
-            return response()->json(['message' => 'Notification restored successfully'], 200);
-        } catch (\Exception $e) {
-            return response()->json(['error' => 'Failed to restore notification: ' . $e->getMessage()], 500);
-        }
+        $notification = Notification::withTrashed()->findOrFail($id);
+        $notification->restore();
+        return response()->json(['message' => 'Notification restored']);
     }
 }

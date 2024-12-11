@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Auth;
 use App\Models\ActivityLog;
 use App\Models\Task;
 use Illuminate\Support\Facades\DB;
+use Exception;
 
 
 class WorktimesController extends Controller
@@ -19,7 +20,7 @@ class WorktimesController extends Controller
     {
         // Kiểm tra quyền xem Worktimes thông qua Policy
         // $this->authorize('viewAny', Worktimes::class);
-    
+
         // Truy vấn dữ liệu Worktimes theo quyền của user
         if ($request->user()->role_id === 1 || $request->user()->role_id === 2) {
             // Admin và Manager có thể xem tất cả Worktimes
@@ -32,27 +33,25 @@ class WorktimesController extends Controller
             } elseif (is_null($request->user()->create_by)) {
                 // Lấy các phòng ban mà user thuộc về
                 $userDepartments = $request->user()->departments()->pluck('department_id')->toArray();
-                
+
                 // Lấy các project mà các phòng ban này tham gia thông qua bảng project_department
                 $projects = DB::table('project_department')
                     ->whereIn('department_id', $userDepartments)
                     ->pluck('project_id')->toArray();
-            
+
                 // Lấy các worktimes có project_id trong danh sách các project mà user tham gia
                 $worktimes = Worktimes::whereIn('project_id', $projects)
                     ->with('user')  // Kết hợp thông tin người dùng
                     ->get();
             }
-            
         } else {
             // Nếu không có quyền, trả về lỗi
             return response()->json(['error' => 'Unauthorized'], 403);
         }
-    
+
         // Trả về kết quả sau khi đã phân quyền
         return response()->json($worktimes, 200);
     }
-    
 
     public function store(StoreWorktimesRequest $request)
     {
@@ -131,20 +130,20 @@ class WorktimesController extends Controller
         try {
             // Tìm assignment theo ID
             $worktime = Worktimes::findOrFail($id);
-    
+
             // Phân quyền xóa phân công
             $this->authorize('delete', $worktime); // Truyền assignment vào để phân quyền
-    
+
             // Thực hiện xóa mềm
             $worktime->delete();
-    
+
             return response()->json(['message' => 'Xóa phân công mềm thành công'], 200);
         } catch (\Exception $e) {
             return response()->json(['error' => 'Xóa phân công thất bại: ' . $e->getMessage()], 500);
         }
     }
 
-    // chỉ update riêng trường status
+
     public function updateStatus(Request $request, $id)
     {
         try {
@@ -209,11 +208,13 @@ class WorktimesController extends Controller
             ], 500);
         }
     }
+
     public function trashedWorktimes()
     {
         $trashedWorktimes = Worktimes::onlyTrashed()->get();
         return response()->json($trashedWorktimes);
     }
+
     public function forceDestroy($id)
     {
         try {
@@ -232,4 +233,49 @@ class WorktimesController extends Controller
             ], 500);
         }
     }
+
+    public function restore($id)
+    {
+        try {
+            // Lấy thông tin người dùng hiện tại
+            $user = auth()->user();
+    
+            // Tìm Worktime đã bị xóa mềm
+            $worktime = Worktimes::onlyTrashed()->findOrFail($id);
+    
+            // Kiểm tra quyền khôi phục Worktime (sử dụng Policy)
+            $this->authorize('restore', $worktime); // Kiểm tra quyền restore thông qua Policy
+    
+            // Khôi phục Worktime
+            $worktime->restore();
+    
+            // Ghi lại lịch sử hoạt động sau khi khôi phục Worktime
+            ActivityLog::create([
+                'user_id' => $user->id, // Người thực hiện hành động
+                'loggable_id' => $worktime->id, // ID của Worktime
+                'loggable_type' => 'App\Models\Worktimes', // Loại đối tượng (Worktime)
+                'action' => 'restored', // Hành động khôi phục
+                'changes' => json_encode(['restored_worktime_id' => $worktime->id]), // Lưu ID của Worktime đã được khôi phục
+            ]);
+    
+            // Trả về kết quả thành công
+            return response()->json([
+                'message' => 'Khôi phục thành công',
+                'worktime' => $worktime,
+            ], 200);
+    
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            // Xử lý lỗi nếu không tìm thấy Worktime
+            return response()->json([
+                'error' => 'Không tìm thấy thời gian làm việc'
+            ], 404); // 404 Not Found
+    
+        } catch (\Exception $e) {
+            // Xử lý lỗi chung
+            return response()->json([
+                'error' => 'Lỗi khôi phục: ' . $e->getMessage()
+            ], 500); // 500 Internal Server Error
+        }
+    }
+    
 }

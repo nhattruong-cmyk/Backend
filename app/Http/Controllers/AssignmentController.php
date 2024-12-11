@@ -54,11 +54,14 @@ class AssignmentController extends Controller
     public function show($id)
     {
         $assignment = Assignment::with('user', 'task', 'department')->findOrFail($id);
-        $this->authorize('view', Assignment::class); // Kiểm tra quyền xem Assignment
-
+    
+        // Kiểm tra quyền xem Assignment
+        $this->authorize('view', $assignment);  // Truyền đối tượng Assignment thay vì Assignment::class
+    
         if (!$assignment) {
             return response()->json(['message' => 'Không tìm thấy phân công'], 404);
         }
+    
         return response()->json($assignment);
     }
 

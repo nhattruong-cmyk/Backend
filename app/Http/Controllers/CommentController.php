@@ -9,13 +9,43 @@ use App\Models\File;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Cache;
 
 class CommentController extends Controller
 {
-    public function index()
+    public function index($taskId)
     {
         // Lấy tất cả các bình luận, kèm theo thông tin task và user
-        $comments = Comment::with(['task', 'user', 'replies', 'files'])->get();
+        $comments = Comment::with(['user:id,fullname', 'files:id,file_name,comment_id'])
+            ->where('task_id', $taskId)
+            ->whereNull('parent_id')
+            ->orderBy('created_at', 'DESC')
+            ->get(['id', 'task_id', 'user_id', 'comment', 'created_at']);
+
+        return response()->json($comments, 200);
+
+    }
+    public function show($id)
+    {
+        // Tìm bình luận theo ID, kèm thông tin task và user
+        $comment = Comment::with(['task', 'user', 'replies', 'files'])->find($id);
+
+        if (!$comment) {
+            return response()->json(['message' => 'Comment not found'], 404);
+        }
+
+        return response()->json($comment, 200);
+    }
+    // Lấy tất cả bình luận và phản hồi của task
+    public function getCommentsByTask($taskId)
+    {
+        $comments = Cache::remember("comments_task_{$taskId}", 60, function () use ($taskId) {
+            return Comment::where('task_id', $taskId)
+                ->whereNull('parent_id')
+                ->with(['user:id,fullname', 'files:id,file_name,comment_id', 'replies'])
+                ->orderBy('created_at', 'DESC') // Sắp xếp giảm dần theo thời gian tạo
+                ->paginate(10); // Phân trang 10 bình luận mỗi trang
+        });
 
         return response()->json($comments, 200);
     }
@@ -72,7 +102,7 @@ class CommentController extends Controller
 
         return response()->json([
             'message' => 'Comment created successfully',
-            'comment' => $comment->load('files'), // Load associated files
+            'comment' => $comment->load('user:id,fullname,avatar', 'files:id,file_name,comment_id'),
         ], 201);
     }
 
@@ -170,25 +200,5 @@ class CommentController extends Controller
         return response()->json(['message' => 'Bình luận đã được xóa thành công.'], 200);
     }
 
-    public function show($id)
-    {
-        // Tìm bình luận theo ID, kèm thông tin task và user
-        $comment = Comment::with(['task', 'user', 'replies', 'files'])->find($id);
 
-        if (!$comment) {
-            return response()->json(['message' => 'Comment not found'], 404);
-        }
-
-        return response()->json($comment, 200);
-    }
-    // Lấy tất cả bình luận và phản hồi của task
-    public function getCommentsByTask($taskId)
-    {
-        $comments = Comment::where('task_id', $taskId)
-            ->whereNull('parent_id') // Lấy bình luận gốc, không lấy phản hồi
-            ->with('replies') // Lấy tất cả các phản hồi của bình luận
-            ->get();
-
-        return response()->json($comments, 200);
-    }
 }

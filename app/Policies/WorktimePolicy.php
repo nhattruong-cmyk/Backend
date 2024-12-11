@@ -19,33 +19,33 @@ class WorktimePolicy
         if ($user->role_id === 1) {
             return true;
         }
-    
+
         // Manager có thể xem tất cả Worktime
         if ($user->role_id === 2) {
             return true;
         }
-    
+
         // Staff với create_by không rỗng có thể xem Worktime thuộc về họ hoặc worktime họ quản lý
         if ($user->role_id === 3 && !is_null($user->create_by)) {
             // Kiểm tra xem user có thuộc worktime nào không
             if ($user->departments()->exists()) {
                 return true;
             }
-    
+
             // Kiểm tra xem user có tạo ra Worktime nào không
             return DB::table('worktimes')->where('user_id', $user->id)->exists();
         }
-    
+
         // Staff với create_by rỗng chỉ có thể xem Worktime của project mà họ thuộc về
         if ($user->role_id === 3 && is_null($user->create_by)) {
             // Kiểm tra xem user có thuộc project nào không và xem các worktimes có project_id trùng với user.id
             return DB::table('worktimes')->where('project_id', $user->id)->exists();
         }
-    
+
         // Mặc định không cho phép xem worktimes
         return false;
     }
-    
+
 
     /**
      * Determine whether the user can view the model.
@@ -175,17 +175,8 @@ class WorktimePolicy
             return true;
         }
 
-        // Staff có thể xóa mềm worktime nếu có cột create_by và có dữ liệu
-        if ($user->role_id === 3 && !is_null($user->create_by)) {
-            // Nếu cột create_by có giá trị, cho phép xóa mềm (soft delete)
-            $Worktime->restore(); // Xóa mềm worktime
-            return true;
-        }
-
-        // Staff có thể xóa mềm worktime nếu có cột create_by và có dữ liệu
-        if ($user->role_id === 3 && is_null($user->create_by)) {
-            // Nếu cột create_by có giá trị, cho phép xóa mềm (soft delete)
-            $Worktime->restore(); // Xóa mềm worktime
+        // Manager có thể xóa worktime nếu họ quản lý worktime đó
+        if ($user->role_id === 3) {
             return true;
         }
 

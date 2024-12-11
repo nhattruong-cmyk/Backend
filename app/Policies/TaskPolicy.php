@@ -10,9 +10,7 @@ use Illuminate\Support\Facades\DB;
 
 class TaskPolicy
 {
-    /**
-     * Determine whether the user can view any models.
-     */
+
     public function viewAny(User $user): bool
     {
         // Admin có thể xem tất cả task
@@ -40,9 +38,6 @@ class TaskPolicy
         return false;
     }
 
-    /**
-     * Determine whether the user can view the model.
-     */
     public function view(User $user, Task $task): bool
     {
         // Admin có thể xem bất kỳ project nào
@@ -70,9 +65,6 @@ class TaskPolicy
         return false;
     }
 
-    /**
-     * Determine whether the user can create models.
-     */
     public function create(User $user): bool
     {
         // Admin có quyền tạo task cho bất kỳ dự án nào
@@ -94,9 +86,6 @@ class TaskPolicy
         return false;
     }
 
-    /**
-     * Determine whether the user can update the model.
-     */
     public function update(User $user, Task $task)
     {
         // Admin có thể cập nhật tất cả các task
@@ -118,9 +107,6 @@ class TaskPolicy
         return false;
     }
 
-    /**
-     * Determine whether the user can delete the model.
-     */
     public function delete(User $user, Task $task): bool
     {
         // Admin có thể xóa bất kỳ phòng ban nào
@@ -149,13 +135,7 @@ class TaskPolicy
         // Staff không có quyền xóa phòng ban nếu không có cột create_by
         return false;
     }
-
-
-    /**
-     * Determine whether the user can restore the model.
-     */
-    // Phân quyền cho khôi phục task
-
+    
     public function restore(User $user, Task $task): bool
     {
         // Admin có thể xóa bất kỳ phòng ban nào
@@ -186,7 +166,6 @@ class TaskPolicy
         return false;
     }
 
-    // Phân quyền cho xóa cứng task
     public function forceDelete(User $user, Task $task): bool
     {
         // Admin có thể xóa vĩnh viễn bất kỳ task nào
@@ -206,8 +185,6 @@ class TaskPolicy
         // Staff không có quyền xóa vĩnh viễn task
         return false;
     }
-
-    // TaskPolicy.php
 
     public function moveTasksToAnotherWorktime(User $user): bool
     {
@@ -231,8 +208,6 @@ class TaskPolicy
         return false;
     }
 
-    // App/Policies/TaskPolicy.php
-
     public function viewWithoutWorktime(User $user): bool
     {
         // Admin có thể xem tất cả các task không có worktime_id
@@ -254,8 +229,6 @@ class TaskPolicy
         return false;
     }
 
-
-    // App/Policies/TaskPolicy.php
     public function viewTasksByWorktimeId(User $user, $worktimeId): bool
     {
         // Admin có thể xem tất cả các task theo worktime_id

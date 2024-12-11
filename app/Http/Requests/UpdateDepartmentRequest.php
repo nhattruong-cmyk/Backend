@@ -27,13 +27,7 @@ class UpdateDepartmentRequest extends FormRequest
         $departmentId = $this->route('id');  // Lấy ID phòng ban từ route để bỏ qua trong unique
 
         return [
-            'department_name' => [
-                'sometimes',  // Chỉ kiểm tra khi có dữ liệu
-                'required',
-                'string',
-                'max:255',
-                Rule::unique('departments', 'department_name')->ignore($departmentId),  // Bỏ qua phòng ban hiện tại khi kiểm tra unique
-            ],
+            'department_name' => 'required|string|max:255',
             'description' => 'sometimes|nullable|string',
             'user_ids' => 'sometimes|array',
             'user_ids.*' => 'exists:users,id',  // Kiểm tra từng ID người dùng có tồn tại trong bảng users không
@@ -44,7 +38,6 @@ class UpdateDepartmentRequest extends FormRequest
     {
         return [
             'department_name.required' => 'Tên phòng ban là bắt buộc.',
-            'department_name.unique' => 'Tên phòng ban đã tồn tại, vui lòng chọn tên khác.',
             'user_ids.*.exists' => 'Một hoặc nhiều ID người dùng không hợp lệ.',
         ];
     }

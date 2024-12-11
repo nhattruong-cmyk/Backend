@@ -27,7 +27,11 @@ class FileController extends Controller
         $files = File::where('task_id', $taskId)->get();
         return response()->json($files, 200);
     }
-
+    public function show($id)
+    {
+        $file = File::findOrFail($id);
+        return response()->json($file, 200);
+    }
     public function store(StoreFileRequest $request, $taskId)
     {
         Log::info('Request received for file upload', ['task_id' => $taskId]);
@@ -101,29 +105,25 @@ class FileController extends Controller
         if (!Auth::check()) {
             return response()->json(['error' => 'Unauthorized'], 401);
         }
-    
+
         $file = File::find($fileId);
-    
+
         if (!$file) {
             return response()->json(['error' => 'File không tìm thấy'], 404);
         }
-    
+
         $filePath = storage_path("app/public/{$file->file_path}");
-    
+
         if (!file_exists($filePath)) {
             return response()->json(['error' => 'File không tồn tại'], 404);
         }
-    
+
         return response()->download($filePath, $file->file_name);
     }
-    
 
 
-    public function show($id)
-    {
-        $file = File::findOrFail($id);
-        return response()->json($file, 200);
-    }
+
+
 
     public function update(Request $request, $id)
     {
