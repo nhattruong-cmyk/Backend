@@ -19,17 +19,19 @@ class WorktimesController extends Controller
     public function index(Request $request)
     {
         // Kiểm tra quyền xem Worktimes thông qua Policy
-        // $this->authorize('viewAny', Worktimes::class);
+        // $this->authorize('viewAny', Worktime::class);
 
         // Truy vấn dữ liệu Worktimes theo quyền của user
         if ($request->user()->role_id === 1 || $request->user()->role_id === 2) {
             // Admin và Manager có thể xem tất cả Worktimes
-            $worktimes = Worktimes::with('user')->get();
+            $worktimes = Worktimes::with('user')->whereIn('status', [1, 2])->get();
         } elseif ($request->user()->role_id === 3) {
             // Staff có thể xem Worktimes tùy thuộc vào các điều kiện
             if (!is_null($request->user()->create_by)) {
                 // Nếu Staff có create_by, họ có thể xem các Worktime mà họ đã tạo
-                $worktimes = Worktimes::where('user_id', $request->user()->id)->with('user')->get();
+                $worktimes = Worktimes::where('user_id', $request->user()->id)
+                    ->whereIn('status', [1, 2])
+                    ->with('user')->get();
             } elseif (is_null($request->user()->create_by)) {
                 // Lấy các phòng ban mà user thuộc về
                 $userDepartments = $request->user()->departments()->pluck('department_id')->toArray();
@@ -41,6 +43,7 @@ class WorktimesController extends Controller
 
                 // Lấy các worktimes có project_id trong danh sách các project mà user tham gia
                 $worktimes = Worktimes::whereIn('project_id', $projects)
+                    ->whereIn('status', [1, 2])
                     ->with('user')  // Kết hợp thông tin người dùng
                     ->get();
             }
@@ -142,7 +145,6 @@ class WorktimesController extends Controller
             return response()->json(['error' => 'Xóa phân công thất bại: ' . $e->getMessage()], 500);
         }
     }
-
 
     public function updateStatus(Request $request, $id)
     {
@@ -277,5 +279,42 @@ class WorktimesController extends Controller
             ], 500); // 500 Internal Server Error
         }
     }
+
+    public function moveTasks(Request $request, $worktimeId)
+    {
+        // Lấy dữ liệu từ request
+        $targetWorktimeId = $request->input('target_worktime_id'); // Worktime đích
+
+        // Tìm worktime nguồn
+        $sourceWorktime = Worktimes::find($worktimeId);
+        if (!$sourceWorktime) {
+            return response()->json(['error' => 'Worktime nguồn không tồn tại.'], 404);
+        }
+
+        // Nếu có worktime đích, kiểm tra tính hợp lệ
+        if ($targetWorktimeId) {
+            $targetWorktime = Worktimes::find($targetWorktimeId);
+            if (!$targetWorktime) {
+                return response()->json(['error' => 'Worktime đích không tồn tại.'], 404);
+            }
+        }
+
+        // Lấy các tasks có trạng thái khác 4 hoặc khác "done"
+        $tasksToMove = Task::where('worktime_id', $worktimeId)
+            ->whereNotIn('status', [4, 'done'])
+            ->get();
+
+        // Cập nhật worktime_id của các tasks
+        foreach ($tasksToMove as $task) {
+            $task->worktime_id = $targetWorktimeId ? $targetWorktimeId : null; // Dời sang worktime đích hoặc null
+            $task->save();
+        }
+
+        return response()->json([
+            'message' => 'Các tasks đã được di chuyển thành công.',
+            'moved_tasks_count' => $tasksToMove->count(),
+        ]);
+    }
+
     
 }

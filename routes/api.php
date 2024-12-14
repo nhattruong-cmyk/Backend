@@ -99,6 +99,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/projects-trashed', [ProjectController::class, 'trashedProjects']);
     Route::post('/projects/{id}/restore', [ProjectController::class, 'restore']);
     Route::delete('/projects/{id}/force', [ProjectController::class, 'forceDelete']);
+    Route::put('/projects/{id}/status', [ProjectController::class, 'updateStatus']);
+
 
     // Tasks
     Route::get('/tasks/without-worktime', [TaskController::class, 'getTaskWithoutWorktime']);
@@ -118,11 +120,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::patch('/tasks/{task_id}/worktime', [TaskController::class, 'updateWorktimeTask']);
     Route::put('/tasks/{task_id}/worktime', [TaskController::class, 'updateWorktimeId']);
     Route::put('/tasks/{task_id}/status', [TaskController::class, 'updateStatus']);
+    Route::put('/tasks/{task_id}/description', [TaskController::class, 'updateDescription']);
     Route::put('/tasks/{task_id}/tasktime', [TaskController::class, 'updateTaskTime']);
     Route::get('/tasks/by-project/{projectId}', [TaskController::class, 'getTasksByProject']);
     Route::get('/tasks/by-running/{id}', [TaskController::class, 'getRunningTasks']);
     Route::get('/tasks/{id}/get-task-with-user', [TaskController::class, 'getTaskWithUser']);
-    Route::get('/tasks/{id}/details', [TaskController::class, 'getTaskDetails']);//test tásk
+    Route::get('/tasks/{id}/details', [TaskController::class, 'getTaskDetails']);
+
 
 
     // Assignments
@@ -136,7 +140,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/assignments/{id}/force', [AssignmentController::class, 'forceDelete']);
     Route::get('/assignments-trashed', [AssignmentController::class, 'getTrashed']);
     Route::put('/assignments/{id}/restore', [AssignmentController::class, 'restore']);
-
+    Route::put('/assignments/{id}/status', [AssignmentController::class, 'updateStatus']);
 
     // Notification
     Route::get('/notifications', [NotificationController::class, 'index']);
@@ -180,7 +184,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/worktimes/{id}/restore', [WorktimesController::class, 'restore']);
     Route::delete('/worktimes/{id}/force', [WorktimesController::class, 'forceDestroy']);
     Route::put('/worktimes/{id}/status', [WorktimesController::class, 'updateStatus']);
-
+    Route::put('/worktimes/{id}/move-tasks', [WorktimesController::class, 'moveTasks']);
     // Route lấy tất cả lịch sử
     Route::get('/activity-logs', [ActivityLogController::class, 'index']);
     // Route lấy lịch sử của một user cụ thể

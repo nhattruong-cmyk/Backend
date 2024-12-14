@@ -102,37 +102,45 @@ class DepartmentPolicy
     {
         // Admin có thể xóa bất kỳ phòng ban nào
         if ($user->role_id === 1) {
-            return true;
-        }
-
-        // Manager có thể xóa phòng ban nếu họ quản lý phòng ban đó
-        if ($user->role_id === 2) {
-            // Kiểm tra xem manager có quyền quản lý phòng ban này không
-            // Giả sử bạn có mối quan hệ 'department' trên User để kiểm tra
-            if ($user->departments->contains($department)) {
+            // Kiểm tra nếu không còn người dùng trong phòng ban
+            if ($department->users->count() == 0) {
+                $department->delete(); // Xóa phòng ban
                 return true;
             }
+            return false; // Nếu còn người dùng, không cho phép xóa
         }
-
-        // Kiểm tra số lượng người dùng trong phòng ban trước khi xóa
-        $usersInDepartment = $department->users;
-        if ($usersInDepartment->count() == 2) {
-            return response()->json([
-                'error' => 'Department cannot be deleted because there are only 2 members.'
-            ], 400);
+    
+        // Manager có thể xóa phòng ban nếu họ quản lý phòng ban đó và không còn người dùng trong phòng ban
+        if ($user->role_id === 2) {
+            // Kiểm tra nếu không còn người dùng trong phòng ban
+            if ($department->users->count() == 0) {
+                $department->delete(); // Xóa phòng ban
+                return true;
+            }
+            return false; // Nếu còn người dùng, không cho phép xóa
         }
-
-        // Staff có thể xóa mềm phòng ban nếu có cột create_by và có dữ liệu
+    
+        // Staff có thể xóa phòng ban nếu cột create_by có dữ liệu
         if ($user->role_id === 3 && !is_null($user->create_by)) {
-            // Nếu cột create_by có giá trị, cho phép xóa mềm (soft delete)
-            $department->delete(); // Xóa mềm phòng ban
-            return true;
+            // Giả sử cột create_by lưu danh sách các ID phòng ban mà user tạo dưới dạng JSON array
+            $createBy = json_decode($user->create_by, true); // Chuyển đổi thành mảng
+    
+            // Kiểm tra nếu phòng ban thuộc về user (user tạo phòng ban này)
+            if (in_array($department->id, $createBy)) {
+                // Kiểm tra nếu phòng ban không còn người dùng nào
+                if ($department->users->count() == 0) {
+                    $department->delete(); // Xóa phòng ban
+                    return true;
+                }
+                return false; // Nếu còn người dùng trong phòng ban, không cho phép xóa
+            }
+            return false; // Nếu không phải phòng ban do user tạo, không cho phép xóa
         }
-
+    
         // Nếu không thỏa mãn điều kiện nào, không cho phép xóa
         return false;
     }
-
+    
     public function removeUserFromDepartment(User $user, Department $department): bool
     {
         // Admin có thể xóa bất kỳ người dùng nào khỏi phòng ban
@@ -141,10 +149,13 @@ class DepartmentPolicy
         }
 
         // Manager có thể xóa người dùng khỏi phòng ban nếu họ quản lý phòng ban đó
-        if ($user->role_id === 2 && $department->managers->contains($user)) {
+        if ($user->role_id === 2) {
             return true;
         }
-
+        // Kiểm tra nếu người dùng là người tạo phòng ban, không thể xóa mình khỏi phòng ban
+        if ($department->create_by === $user->id) {
+            return false; // Trả về lỗi nếu người dùng là người tạo phòng ban
+        }
         // Staff có thể xóa người dùng khỏi phòng ban nếu họ đã tạo phòng ban (có create_by)
         if ($user->role_id === 3 && !is_null($user->create_by)) {
             return true;

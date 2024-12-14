@@ -5,6 +5,7 @@ namespace App\Policies;
 use Illuminate\Support\Facades\Log;
 use App\Models\Task;
 use App\Models\User;
+use App\Models\Project;
 use Illuminate\Auth\Access\Response;
 use Illuminate\Support\Facades\DB;
 
@@ -14,54 +15,63 @@ class TaskPolicy
     public function viewAny(User $user): bool
     {
         // Admin có thể xem tất cả task
-        if ($user->role_id === 1) {
+        if ($user->role_id === 1 || $user->role_id === 3) {
             return true;
         }
-
+    
         // Manager có thể xem tất cả task
         if ($user->role_id === 2) {
             return true;
         }
-
-        // Staff chỉ có thể xem task mà họ thuộc về hoặc họ đã tạo
+    
+        // Staff (role_id = 3) có thể xem task nếu:
         if ($user->role_id === 3) {
-            // Kiểm tra xem user có thuộc phòng ban nào không
-            if ($user->departments()->exists()) {
+            // Nếu có dữ liệu trong cột create_by (user tạo ra dự án), xem tất cả phân công
+            if (!is_null($user->create_by)) {
                 return true;
             }
-
-            // Kiểm tra xem user có tạo ra task nào không
+    
+            // Nếu không có dữ liệu trong cột create_by, chỉ xem các task mà họ tạo ra
             return DB::table('tasks')->where('user_id', $user->id)->exists();
         }
-
+    
         // Mặc định không cho phép xem project
         return false;
     }
-
+    
     public function view(User $user, Task $task): bool
     {
-        // Admin có thể xem bất kỳ project nào
+        // Admin có thể xem bất kỳ task nào
         if ($user->role_id === 1) {
             return true;
         }
 
-        // Manager có thể xem project mà họ quản lý
+        // Manager có thể xem task mà họ quản lý
         if ($user->role_id === 2) {
             return true;
         }
 
-        // Staff chỉ có thể xem project mà họ thuộc về hoặc họ đã tạo
+        // Staff có thể xem task nếu:
         if ($user->role_id === 3) {
-            // Kiểm tra xem user có thuộc phòng ban nào không
+            // Kiểm tra nếu user có create_by và create_by có dữ liệu
+            if (!is_null($user->create_by)) {
+                // Kiểm tra nếu task thuộc dự án mà user đã tạo (dựa trên user_id của dự án)
+                $project = Project::find($task->project_id);
+                if ($project && $project->user_id === $user->create_by) {
+                    return true;  // User có quyền xem task trong dự án mà họ tạo
+                }
+            }
+
+            // Nếu không, kiểm tra xem user có quyền xem task thuộc phòng ban họ tham gia
             if ($user->departments()->exists()) {
                 return true;
             }
 
-            // Kiểm tra xem user có tạo ra project nào không
+            // Kiểm tra task được giao cho user
             return DB::table('tasks')->where('user_id', $user->id)->exists();
         }
 
-        // Nếu không, từ chối quyền
+        // Nếu không thỏa mãn các điều kiện trên, từ chối quyền
         return false;
     }
 
@@ -109,30 +119,17 @@ class TaskPolicy
 
     public function delete(User $user, Task $task): bool
     {
-        // Admin có thể xóa bất kỳ phòng ban nào
-        if ($user->role_id === 1) {
+        // Admin và Manager có thể xóa mọi task
+        if ($user->role_id === 1 || $user->role_id === 2) {
             return true;
         }
-
-        // Manager có thể xóa phòng ban nếu họ quản lý phòng ban đó
-        if ($user->role_id === 2) {
+    
+        // Staff chỉ có thể xóa task nếu họ là người tạo task
+        if ($user->role_id === 3 && $task->create_by === $user->id) {
             return true;
         }
-
-        // Staff có thể xóa mềm phòng ban nếu có cột create_by và có dữ liệu
-        if ($user->role_id === 3 && !is_null($user->create_by)) {
-            // Nếu cột create_by có giá trị, cho phép xóa mềm (soft delete)
-            $task->delete(); // Xóa mềm phòng ban
-            return true;
-        }
-        // Staff có thể xóa mềm phòng ban nếu có cột create_by và có dữ liệu
-        if ($user->role_id === 3 && is_null($user->create_by)) {
-            // Nếu cột create_by có giá trị, cho phép xóa mềm (soft delete)
-            $task->delete(); // Xóa mềm phòng ban
-            return true;
-        }
-
-        // Staff không có quyền xóa phòng ban nếu không có cột create_by
+    
+        // Nếu không thỏa mãn bất kỳ điều kiện nào, không cho phép xóa
         return false;
     }
     

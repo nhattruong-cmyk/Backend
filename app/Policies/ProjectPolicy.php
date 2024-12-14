@@ -99,18 +99,18 @@ class ProjectPolicy
     
         // Kiểm tra đối với Staff (role_id = 3)
         if ($user->role_id === 3) {
-            // Kiểm tra trạng thái của dự án (phải là 1 hoặc 4)
-            if (!in_array($project->status, [1, 4])) {
-                return response()->json(['message' => 'You can only delete projects with status 1 or 4.'], 403); // Trạng thái dự án không hợp lệ
-            }
-    
+
+            if (!is_array($user->create_by)) {
+
             // Kiểm tra xem dự án có phòng ban nào không
             if ($project->departments()->count() > 0) {
                 return response()->json(['message' => 'You cannot delete this project because it has departments.'], 403); // Dự án có phòng ban
+            }elseif(!in_array($project->status, [1, 4])){
+                return response()->json(['message' => 'You can only delete projects with status 1 or 4.'], 403); // Trạng thái dự án không hợp lệ
             }
     
             // Kiểm tra xem cột create_by có phải là mảng hay không
-            if (!is_array($user->create_by)) {
+           
                 return response()->json(['message' => 'You cannot delete this project because create_by is not an array.'], 403); // create_by không phải là mảng
             }
     
@@ -176,12 +176,37 @@ class ProjectPolicy
             return true;
         }
 
-        // Staff (role_id = 3) chỉ có thể thêm department vào project mà họ đã tạo
-        if ($user->role_id === 3 && $project->user_id === $user->id) {
-            return true;
+        // Staff chỉ có thể xóa phòng ban nếu họ là người tạo dự án
+        if ($user->role_id === 3) {
+            if ($user->id === $project->user_id) { // Kiểm tra xem user có phải là người tạo dự án không
+                return true;
+            }
         }
-
         // Nếu không đủ quyền
         return false;
     }
+
+    public function removeDepartmentFromProject(User $user, Project $project): bool
+    {
+        // Admin có thể xóa bất kỳ phòng ban nào
+        if ($user->role_id === 1) {
+            return true;
+        }
+    
+        // Manager có thể xóa phòng ban nếu họ quản lý phòng ban đó
+        if ($user->role_id === 2) {
+            return true;
+        }
+    
+        // Staff chỉ có thể xóa phòng ban nếu họ là người tạo dự án
+        if ($user->role_id === 3) {
+            if ($user->id === $project->user_id) { // Kiểm tra xem user có phải là người tạo dự án không
+                return true;
+            }
+        }
+    
+        // Nếu không thỏa mãn điều kiện, không cho phép xóa phòng ban
+        return false;
+    }
+    
 }

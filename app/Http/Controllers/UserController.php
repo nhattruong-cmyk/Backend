@@ -67,16 +67,44 @@ class UserController extends Controller
             return response()->json(['message' => 'User not found'], 404);
         }
 
-        if ($user->role_id == 1 || $user->role_id == 2) {  // Admin
+        // Nếu là Admin (role_id = 1 hoặc 2), cho phép xem tất cả thông tin người dùng
+        if ($user->role_id == 1 || $user->role_id == 2) {
             return response()->json($requestedUser); // Admin sees all details
-        } elseif ($user->role_id == 3) {  // Manager or Staff
+        }
+
+        // Nếu là Manager hoặc Staff (role_id = 3)
+        if ($user->role_id == 3) {
+            // Nếu người dùng là chính mình hoặc người yêu cầu có nhiệm vụ chung với người đó
+            if ($user->id == $requestedUser->id) {
+                return response()->json([
+                    'fullname' => $requestedUser->fullname,
+                    'role' => $requestedUser->role_id,
+                    'email' => $requestedUser->email,
+                    'phone_number' => $requestedUser->phone_number,
+                    'email_verified_at' => $requestedUser->email_verified_at,
+                    'avatar' => $requestedUser->avatar,
+                    'comments' => $requestedUser->comments->map(function ($comment) {
+                        return [
+                            'content' => $comment->content,
+                            'task_id' => $comment->task_id,
+                        ];
+                    }),
+                ]);
+            }
+
+            // Kiểm tra nhiệm vụ chung với người yêu cầu
             $sharedTasks = $user->tasks->pluck('id');
             $isSameTask = Comment::whereIn('task_id', $sharedTasks)->where('user_id', $requestedUser->id)->exists();
 
+            // Nếu có nhiệm vụ chung hoặc là Admin
             if ($isSameTask || $requestedUser->role_id == 1) {
                 return response()->json([
                     'fullname' => $requestedUser->fullname,
                     'role' => $requestedUser->role_id,
+                    'email' => $requestedUser->email,
+                    'phone_number' => $requestedUser->phone_number,
+                    'email_verified_at' => $requestedUser->email_verified_at,
+                    'avatar' => $requestedUser->avatar,
                     'comments' => $requestedUser->comments->map(function ($comment) {
                         return [
                             'content' => $comment->content,
@@ -87,6 +115,7 @@ class UserController extends Controller
             }
         }
 
+        // Trả về lỗi nếu không có quyền truy cập
         return response()->json(['message' => 'Unauthorized'], 403);
     }
     // Tạo mới một người dùng
@@ -731,6 +760,9 @@ class UserController extends Controller
                     'access_token' => $token,
                     'message' => 'Login successful',
                     'status' => 'verified',
+                    'role' => $user->role->name,      // Thêm role vào phản hồi
+                    'user_id' => $user->id,      // Thêm user_id vào phản hồi
+                    'user_name' => $user->fullname, // Thêm fullname vào phản hồi
                 ]);
             }
 

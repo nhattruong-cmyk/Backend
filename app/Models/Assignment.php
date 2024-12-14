@@ -18,6 +18,7 @@ class Assignment extends Model
         'status',
         'project_id',
         'taskmaster',
+        'is_duplicate',
     ];
     use SoftDeletes;
     // Quan hệ với Task

@@ -17,11 +17,13 @@ use App\Http\Requests\UpdateAssignmentRequest;
 use Illuminate\Http\Request;
 use Newsletter;
 use Illuminate\Support\Facades\DB;
+use Exception;
 
 class AssignmentController extends Controller
 {
     public function index(Request $request)
     {
+        // Kiểm tra quyền truy cập (Sử dụng Policy)
         $this->authorize('viewAny', Assignment::class);
 
         $user = $request->user();
@@ -32,19 +34,18 @@ class AssignmentController extends Controller
             $assignments = Assignment::with('user', 'department', 'task')->get();
         } elseif ($user->role_id === 3) {
             // Staff
-            if ($user->create_by !== null) {
-                // Nếu có create_by, hiển thị các assignments mà user là taskmaster
-                $assignments = Assignment::where('taskmaster', $user->id)
-                    ->with('user', 'department', 'task')
-                    ->get();
+            if (!is_null($user->create_by)) {
+                // Nếu có create_by, Staff có quyền xem tất cả assignments mà họ là taskmaster
+                $assignments = Assignment::with('user', 'department', 'task')->get();
             } else {
-                // Nếu không có create_by, chỉ hiển thị các assignments mà user là người nhận
-                $assignments = Assignment::where('user_id', $user->id)
+                // Nếu không có create_by, lấy các assignments mà user đã tạo hoặc được phân công cho họ
+                $assignments = Assignment::where('user_id', $user->id) // Các phân công do user nhận
+                    ->orWhere('taskmaster', $user->id) // Các phân công mà user đã tạo
                     ->with('user', 'department', 'task')
                     ->get();
             }
         } else {
-            // Nếu không thỏa mãn điều kiện, trả về lỗi
+            // Nếu không thỏa mãn điều kiện, trả về lỗi Unauthorized
             return response()->json(['error' => 'Unauthorized'], 403);
         }
 
@@ -54,14 +55,14 @@ class AssignmentController extends Controller
     public function show($id)
     {
         $assignment = Assignment::with('user', 'task', 'department')->findOrFail($id);
-    
+
         // Kiểm tra quyền xem Assignment
         $this->authorize('view', $assignment);  // Truyền đối tượng Assignment thay vì Assignment::class
-    
+
         if (!$assignment) {
             return response()->json(['message' => 'Không tìm thấy phân công'], 404);
         }
-    
+
         return response()->json($assignment);
     }
 
@@ -85,8 +86,11 @@ class AssignmentController extends Controller
     public function getUsersByDepartment($department_id)
     {
         try {
-            // Tìm phòng ban và nạp danh sách người dùng liên kết
-            $department = Department::with('users')->findOrFail($department_id);
+            $department = Department::with(['users' => function($query) {
+                $query->whereHas('confirmationRequests', function($subQuery) {
+                    $subQuery->where('confirmation_status', 'confirmed');
+                });
+            }])->findOrFail($department_id);
 
             return response()->json([
                 'message' => 'Lấy danh sách người dùng thành công',
@@ -138,26 +142,35 @@ class AssignmentController extends Controller
                 $existingAssignment = Assignment::where('task_id', $task->id)
                     ->where('user_id', $user_id)
                     ->where('department_id', $validatedData['department_id'])
-                    ->exists();
+                    ->first();
 
                 if ($existingAssignment) {
-                    continue;
+                    // Nếu nhiệm vụ đã tồn tại, đánh dấu bản ghi cũ là duplicate và tạo nhiệm vụ mới
+                    $existingAssignment->is_duplicate = true;
+                    $existingAssignment->save(); // Lưu lại bản ghi cũ
+
+                    // Tạo nhiệm vụ mới
+                    $assignment = Assignment::create([
+                        'task_id' => $task->id,
+                        'department_id' => $validatedData['department_id'],
+                        'project_id' => $validatedData['project_id'],
+                        'user_id' => $user_id,
+                        'note' => $validatedData['note'] ?? 'No note',
+                        'status' => 'assigned',
+                        'taskmaster' => $validatedData['taskmaster'] ?? auth()->id(),
+                    ]);
+                } else {
+                    // Tạo nhiệm vụ mới nếu chưa có
+                    $assignment = Assignment::create([
+                        'task_id' => $task->id,
+                        'department_id' => $validatedData['department_id'],
+                        'project_id' => $validatedData['project_id'],
+                        'user_id' => $user_id,
+                        'note' => $validatedData['note'] ?? 'No note',
+                        'status' => 'assigned',
+                        'taskmaster' => $validatedData['taskmaster'] ?? auth()->id(),
+                    ]);
                 }
-
-                // Thêm người dùng vào phân công với project_id và taskmaster là người dùng hiện tại
-                $assignment = Assignment::create([
-                    'task_id' => $task->id,
-                    'user_id' => $user_id,
-                    'department_id' => $validatedData['department_id'],
-                    'project_id' => $validatedData['project_id'],
-                    'note' => $validatedData['note'] ?? '',
-                    'status' => 'assigned',
-                    'taskmaster' => Auth::user()->id, // Thêm taskmaster lấy từ người dùng hiện tại
-                ]);
-
-                // Thêm người dùng vào bảng phụ task_user
-                $task->users()->attach($user_id);
-
                 // Gửi email thông báo xác nhận
                 $user = User::find($user_id);
 
@@ -169,22 +182,24 @@ class AssignmentController extends Controller
                     }
                 }
 
-                // Ghi nhận người dùng đã được phân công
+                // Lưu người dùng đã được phân công
                 $assignedUsers[] = $user_id;
             }
 
-            // Gửi phản hồi thành công với danh sách người dùng được phân công
+
+            // Trả về phản hồi
             return response()->json([
-                'message' => 'Phân công nhiệm vụ thành công',
-                'task' => $task,
-                'assigned_users' => User::whereIn('id', $assignedUsers)->get(),
-                'invalid_users' => User::whereIn('id', $invalidDepartmentUsers)->get(),
-            ], 201);
+                'message' => 'Assignments created successfully.',
+                'assigned_users' => $assignedUsers,
+            ], 200);
         } catch (\Exception $e) {
-            // Trả về lỗi nếu có ngoại lệ
-            return response()->json(['error' => 'Phân công nhiệm vụ thất bại: ' . $e->getMessage()], 500);
+            // Bắt lỗi và trả về thông báo lỗi
+            return response()->json([
+                'error' => 'Error while creating assignment: ' . $e->getMessage(),
+            ], 500);
         }
     }
+
 
     public function update(UpdateAssignmentRequest $request, $id)
     {
@@ -192,14 +207,16 @@ class AssignmentController extends Controller
             // Tìm assignment theo ID
             $assignment = Assignment::findOrFail($id);
 
-            $this->authorize('update', Assignment::class); // Kiểm tra quyền xem Assignment
+            // Kiểm tra quyền cập nhật Assignment, gọi policy
+            $this->authorize('update', $assignment); // Kiểm tra quyền cập nhật Assignment
+
             // Nếu muốn cập nhật user, department hoặc project, cần kiểm tra lại
             if ($request->has('user_id') || $request->has('department_id') || $request->has('project_id')) {
                 $newUserId = $request->input('user_id', $assignment->user_id);
                 $newDepartmentId = $request->input('department_id', $assignment->department_id);
                 $newProjectId = $request->input('project_id', $assignment->project_id);
 
-                // Tìm phòng ban, người dùng và dự án mới
+                // Kiểm tra sự tồn tại của phòng ban, người dùng và dự án
                 $department = Department::findOrFail($newDepartmentId);
                 $user = User::findOrFail($newUserId);
                 $project = Project::findOrFail($newProjectId);
@@ -209,11 +226,9 @@ class AssignmentController extends Controller
                     return response()->json(['error' => 'Người dùng không thuộc phòng ban đã chọn.'], 400);
                 }
 
-                // Kiểm tra xem phân công có thay đổi dự án hay không
+                // Cập nhật project nếu có sự thay đổi
                 if ($assignment->project_id != $newProjectId) {
-                    $assignment->update([
-                        'project_id' => $newProjectId,
-                    ]);
+                    $assignment->update(['project_id' => $newProjectId]);
                 }
 
                 // Cập nhật user và department nếu có sự thay đổi
@@ -241,29 +256,125 @@ class AssignmentController extends Controller
                 $assignment->save();
             }
 
-            // Tạo thông báo nếu có thay đổi quan trọng
-            Notification::create([
-                'user_id' => $assignment->user_id,
-                'message' => 'Phân công của bạn đã được cập nhật.',
-                'read' => false,
-            ]);
+//            // Tạo thông báo nếu có thay đổi quan trọng
+//            Notification::create([
+//                'user_id' => $assignment->user_id,
+//                'message' => 'Phân công của bạn đã được cập nhật.',
+//                'read' => false,
+//            ]);
 
             return response()->json(['message' => 'Cập nhật phân công thành công', 'assignment' => $assignment], 200);
         } catch (\Exception $e) {
             return response()->json(['error' => 'Cập nhật phân công thất bại: ' . $e->getMessage()], 500);
         }
     }
+    // public function update(UpdateAssignmentRequest $request, $id)
+    // {
+    //     try {
+    //         // Tìm assignment theo ID
+    //         $assignment = Assignment::findOrFail($id);
+
+    //         $this->authorize('update', Assignment::class); // Kiểm tra quyền xem Assignment
+    //         // Nếu muốn cập nhật user, department hoặc project, cần kiểm tra lại
+    //         if ($request->has('user_id') || $request->has('department_id') || $request->has('project_id')) {
+    //             $newUserId = $request->input('user_id', $assignment->user_id);
+    //             $newDepartmentId = $request->input('department_id', $assignment->department_id);
+    //             $newProjectId = $request->input('project_id', $assignment->project_id);
+
+    //             // Tìm phòng ban, người dùng và dự án mới
+    //             $department = Department::findOrFail($newDepartmentId);
+    //             $user = User::findOrFail($newUserId);
+    //             $project = Project::findOrFail($newProjectId);
+
+    //             // Kiểm tra xem người dùng đã thuộc phòng ban chưa
+    //             if (!$department->users->contains($user->id)) {
+    //                 return response()->json(['error' => 'Người dùng không thuộc phòng ban đã chọn.'], 400);
+    //             }
+
+    //             // Kiểm tra xem phân công có thay đổi dự án hay không
+    //             if ($assignment->project_id != $newProjectId) {
+    //                 $assignment->update([
+    //                     'project_id' => $newProjectId,
+    //                 ]);
+    //             }
+
+    //             // Cập nhật user và department nếu có sự thay đổi
+    //             if ($assignment->user_id != $newUserId || $assignment->department_id != $newDepartmentId) {
+    //                 $assignment->update([
+    //                     'user_id' => $newUserId,
+    //                     'department_id' => $newDepartmentId,
+    //                 ]);
+
+    //                 // Đồng bộ bảng `task_user` khi thay đổi user hoặc department
+    //                 $task = $assignment->task;
+    //                 $task->users()->syncWithoutDetaching([$newUserId]);
+    //             }
+    //         }
+
+    //         // Cập nhật trạng thái nếu có thay đổi
+    //         if ($request->has('status') && $assignment->status != $request->status) {
+    //             $assignment->status = $request->status;
+    //             $assignment->save();
+    //         }
+
+    //         // Cập nhật ghi chú (note) nếu có thay đổi
+    //         if ($request->has('note') && $assignment->note != $request->note) {
+    //             $assignment->note = $request->note;
+    //             $assignment->save();
+    //         }
+
+    //         // Tạo thông báo nếu có thay đổi quan trọng
+    //         Notification::create([
+    //             'user_id' => $assignment->user_id,
+    //             'message' => 'Phân công của bạn đã được cập nhật.',
+    //             'read' => false,
+    //         ]);
+
+    //         return response()->json(['message' => 'Cập nhật phân công thành công', 'assignment' => $assignment], 200);
+    //     } catch (\Exception $e) {
+    //         return response()->json(['error' => 'Cập nhật phân công thất bại: ' . $e->getMessage()], 500);
+    //     }
+    // }
 
     public function destroy($id)
     {
         try {
+            // Lấy thông tin người dùng hiện tại
+            $user = auth()->user();
+    
             // Tìm assignment theo ID
             $assignment = Assignment::findOrFail($id);
     
-            // Phân quyền xóa phân công
-            $this->authorize('delete', $assignment); // Truyền assignment vào để phân quyền
+            // Kiểm tra trạng thái phân công
+            $status = $assignment->status;
     
-            // Thực hiện xóa mềm
+            // Kiểm tra quyền xóa nhiệm vụ dựa trên vai trò của người dùng và trạng thái phân công
+            if ($user->role_id === 1 || $user->role_id === 2) {
+                // Admin và Manager có thể xóa phân công khi trạng thái không phải 1 hoặc 4
+                if (in_array($status, ['to do', 'done'])) {
+                    return response()->json(['error' => 'Bạn không thể xóa phân công có trạng thái này.'], 400);
+                }
+            } elseif ($user->role_id === 3) {
+                if (!is_null($user->create_by)) {
+                    // User có role_id = 3 và create_by không rỗng, chỉ có thể xóa phân công khi trạng thái là 1 hoặc 4
+                    if (!in_array($status, ['to do', 'done'])) {
+                        return response()->json(['error' => 'Bạn chỉ có thể xóa phân công có trạng thái 1 hoặc 4.'], 400);
+                    }
+                } else {
+                    // User có role_id = 3 và create_by là rỗng, chỉ có thể xóa phân công của chính họ hoặc do họ tạo khi trạng thái không phải 1 hoặc 4
+                    if ($assignment->user_id !== $user->id && $assignment->create_by !== $user->id) {
+                        return response()->json(['error' => 'Bạn chỉ có thể xóa phân công của chính bạn hoặc do bạn tạo.'], 400);
+                    }
+    
+                    if (in_array($status, ['to do', 'done'])) {
+                        return response()->json(['error' => 'Bạn không thể xóa phân công có trạng thái này.'], 400);
+                    }
+                }
+            } else {
+                return response()->json(['error' => 'Bạn không có quyền xóa phân công này.'], 403);
+            }
+    
+            // Thực hiện xóa mềm (soft delete)
             $assignment->delete();
     
             return response()->json(['message' => 'Xóa phân công mềm thành công'], 200);
@@ -271,7 +382,6 @@ class AssignmentController extends Controller
             return response()->json(['error' => 'Xóa phân công thất bại: ' . $e->getMessage()], 500);
         }
     }
-    
     
 
     public function getTrashed()
@@ -313,21 +423,44 @@ class AssignmentController extends Controller
         try {
             // Tìm assignment theo ID, bao gồm cả bản ghi đã xóa mềm
             $assignment = Assignment::withTrashed()->find($id);
-    
+
             if (!$assignment) {
                 return response()->json(['error' => 'Không tìm thấy phân công với ID ' . $id], 404);
             }
-    
+
             // Kiểm tra quyền xóa
-            $this->authorize('delete', $assignment);
-    
+            // $this->authorize('delete', $assignment);
+
             // Xóa cứng
             $assignment->forceDelete();
-    
+
             return response()->json(['message' => 'Xóa phân công thành công'], 200);
         } catch (\Exception $e) {
             return response()->json(['error' => 'Xóa phân công thất bại: ' . $e->getMessage()], 500);
         }
+    }
+
+    public function updateStatus(Request $request, $id)
+    {
+        $validatedData = $request->validate([
+            'status' => 'required|integer|in:1,2,3,4',
+        ]);
+
+        $assignment = Assignment::find($id);
+
+        if (!$assignment) {
+            return response()->json([
+                'error' => 'Assignment not found.',
+            ], 404);
+        }
+
+        $assignment->status = $validatedData['status'];
+        $assignment->save();
+
+        return response()->json([
+            'message' => 'Assignment status updated successfully.',
+            'data' => $assignment,
+        ], 200);
     }
     
 }

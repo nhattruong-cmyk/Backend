@@ -13,6 +13,7 @@ use App\Models\Notification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
+use Illuminate\Support\Facades\DB;
 
 class ProjectController extends Controller
 {
@@ -213,116 +214,140 @@ class ProjectController extends Controller
             return response()->json(['error' => 'Failed to add departments to project: ' . $e->getMessage()], 500);
         }
     }
-
-
     public function removeDepartmentFromProject(Request $request, string $project_id)
     {
         // Lấy thông tin người dùng hiện tại
         $user = auth()->user();
-
+    
         // Tìm dự án theo ID
         $project = Project::findOrFail($project_id);
-
+    
         // Kiểm tra quyền của người dùng đối với dự án (sử dụng Policy)
-        $this->authorize('update', $project); // Kiểm tra quyền cập nhật dự án thông qua ProjectPolicy
-
+        $this->authorize('removeDepartmentFromProject', $project); // Kiểm tra quyền cập nhật dự án thông qua ProjectPolicy
+    
         // Xác thực dữ liệu đầu vào, nhận `department_ids` có thể là mảng hoặc giá trị đơn
         $validatedData = $request->validate([
             'department_ids' => 'required', // Yêu cầu `department_ids` có mặt
         ]);
-
+    
         try {
             // Kiểm tra xem `department_ids` là mảng hay giá trị đơn
             if (!is_array($validatedData['department_ids'])) {
                 // Nếu chỉ là một giá trị, chuyển thành mảng để xử lý dễ dàng
                 $validatedData['department_ids'] = [(int)$validatedData['department_ids']];
             }
-
+    
             // Lấy danh sách phòng ban đang thuộc về project
             $currentDepartmentIds = $project->departments->pluck('id')->toArray();
-
+    
             // Kiểm tra xem các phòng ban nhập vào có thuộc project hay không
             $invalidDepartments = array_diff($validatedData['department_ids'], $currentDepartmentIds);
-
+    
             if (!empty($invalidDepartments)) {
                 return response()->json([
                     'error' => 'The following departments are not part of this project: ' . implode(', ', $invalidDepartments)
                 ], 400);
             }
-
-            // Xóa các phòng ban được chỉ định ra khỏi project
+    
+            // Kiểm tra xem phòng ban có đang nhận nhiệm vụ nào không (dựa vào bảng task_department)
+            foreach ($validatedData['department_ids'] as $departmentId) {
+                // Kiểm tra phòng ban có task nào đang được thực hiện không trong dự án này
+                $taskCount = DB::table('task_department')
+                    ->where('department_id', $departmentId)
+                    ->whereIn('task_id', $project->tasks->pluck('id')) // Xác nhận task của dự án
+                    ->count();
+    
+                // Nếu phòng ban đang nhận nhiệm vụ, không thể xóa
+                if ($taskCount > 0) {
+                    return response()->json([
+                        'error' => 'Department cannot be removed because it is currently handling tasks.'
+                    ], 400);
+                }
+            }
+    
+            // Tiến hành xóa phòng ban khỏi dự án
             $project->departments()->detach($validatedData['department_ids']);
-
-            // Ghi lại lịch sử hoạt động sau khi xóa phòng ban
-            ActivityLog::create([
-                'user_id' => Auth::user()->id, // Người thực hiện hành động
-                'loggable_id' => $project->id, // ID của dự án
-                'loggable_type' => 'App\Models\Project', // Loại đối tượng (Project)
-                'action' => 'removed_department', // Hành động xóa phòng ban
-                'changes' => json_encode(['removed_departments' => $validatedData['department_ids']]), // Lưu danh sách các phòng ban bị xóa
-            ]);
-
+    
             return response()->json([
-                'message' => 'Departments removed from project successfully',
-                'project' => $project->load('departments')
+                'message' => 'The selected department(s) have been successfully removed from the project.'
             ], 200);
-        } catch (Exception $e) {
-            return response()->json(['error' => 'Failed to remove departments from project: ' . $e->getMessage()], 500);
+    
+        } catch (\Exception $e) {
+            // Xử lý lỗi nếu có
+            return response()->json([
+                'error' => 'An error occurred: ' . $e->getMessage()
+            ], 500);
         }
     }
+    
 
     public function destroy($id)
     {
         try {
             // Lấy thông tin người dùng hiện tại
             $user = auth()->user();
-    
+
             // Tìm Project theo ID
             $project = Project::findOrFail($id);
-    
+
             // Kiểm tra quyền của người dùng đối với dự án (sử dụng Policy)
             $this->authorize('delete', $project); // Kiểm tra quyền xóa dự án thông qua ProjectPolicy
-    
+
             // Kiểm tra xem project có liên kết với departments hay không
             $departmentsCount = $project->departments()->count(); // Đếm số lượng departments liên quan
-    
+
+            // Kiểm tra xem project có task hay không
+            $tasksCount = $project->tasks()->count(); // Đếm số lượng task liên quan đến project
+
+            // Kiểm tra trạng thái và các điều kiện khác của dự án
             if ($departmentsCount > 0) {
                 return response()->json([
-                    'error' => 'Cannot delete project because it is associated with departments.'
-                ], 400); // 400 Bad Request
+                    'error' => 'Không thể xóa dự án vì còn phòng ban trong dự án.'
+                ], 400);  // Trả về lỗi 400 nếu còn phòng ban
             }
-    
+
+            if ($tasksCount > 0) {
+                return response()->json([
+                    'error' => 'Không thể xóa dự án vì còn task trong dự án.'
+                ], 400);  // Trả về lỗi 400 nếu còn task
+            }
+
+            if (!in_array($project->status, ['to do', 'done'], true)) {
+                return response()->json([
+                    'error' => 'Không thể xóa dự án do trạng thái không hợp lệ hoặc đang thực hiện.'
+                ], 403);  // Trả về lỗi 403 nếu trạng thái không hợp lệ
+            }
+
             // Xóa mềm (soft delete)
             $project->delete();
-    
-            // Ghi lại lịch sử hoạt động sau khi xóa dự án
-            ActivityLog::create([
-                'user_id' => Auth::user()->id, // Người thực hiện hành động
-                'loggable_id' => $project->id, // ID của dự án
-                'loggable_type' => 'App\Models\Project', // Loại đối tượng (Project)
-                'action' => 'soft_deleted', // Hành động xóa mềm
-                'changes' => json_encode(['deleted_project_id' => $project->id]), // Lưu ID của dự án bị xóa
-            ]);
-    
+
             return response()->json([
-                'message' => 'Project soft deleted successfully',
+                'message' => 'Dự án đã được xóa thành công.'
             ], 200);
-        } catch (\Illuminate\Auth\Access\AuthorizationException $e) {
-            // Nếu không có quyền xóa, trả về lỗi
-            return response()->json([
-                'error' => 'You do not have permission to delete this project.'
-            ], 403); // 403 Forbidden
         } catch (\Exception $e) {
-            // Xử lý lỗi khác
             return response()->json([
-                'error' => 'Failed to delete project: ' . $e->getMessage()
-            ], 500); // 500 Internal Server Error
+                'error' => 'Không thể xóa dự án: ' . $e->getMessage()
+            ], 500);
         }
     }
-    
-    
-    
+    public function updateStatus(Request $request, $projectId)
+    {
+        try {
+            $project = Project::findOrFail($projectId); // Lấy dự án theo ID
+            $project->status = $request->input('status'); // Cập nhật trạng thái
+            $project->save(); // Lưu lại thay đổi
 
+            return response()->json([
+                'message' => 'Project status updated successfully',
+                'project' => $project,
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Failed to update project status',
+                'details' => $e->getMessage(),
+            ], 500);
+        }
+    }
 
     public function restore($id)
     {
@@ -362,7 +387,6 @@ class ProjectController extends Controller
             ], 500); // 500 Internal Server Error
         }
     }
-
 
     // lấy danh sách dự án đã xóa mềm
     public function trashedProjects()

@@ -33,12 +33,11 @@ class UpdateProjectRequest extends FormRequest
             ],
             'description' => 'sometimes|nullable|string',
             'start_date' => 'sometimes|required|date',
-            'end_date' => 'sometimes|nullable|date|after_or_equal:start_date',
+            'end_date' => 'nullable|date|after_or_equal:start_date',  // Cho phép để trống hoặc nếu có nhập, phải >= start_date
             'status' => 'sometimes|required|integer|in:1,2,3,4',
         ];
     }
     
-
     public function messages()
     {
         return [
@@ -48,9 +47,9 @@ class UpdateProjectRequest extends FormRequest
             'end_date.after_or_equal' => 'The end date must be after or equal to the start date.',
             'status.in' => 'Status must be one of the following: 1,2,3,4',
             'project_name.unique' => 'The project name has already been taken. Please choose a different name.',
-
         ];
     }
+    
 
     protected function failedValidation(Validator $validator)
     {

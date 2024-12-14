@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use Exception;
 
 use App\Models\Department;
+use App\Models\Assignment;
+
 use App\Models\Notification;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -28,10 +30,10 @@ class DepartmentController extends Controller
     public function index()
     {
         $user = auth()->user();
-    
+
         // Kiểm tra quyền của người dùng (sử dụng Policy)
         $this->authorize('viewAny', Department::class); // Đảm bảo có phương thức 'viewAny' trong DepartmentPolicy
-    
+
         // Lấy phòng ban theo vai trò người dùng
         if ($user->role_id === 1 || $user->role_id === 2) {
             // Nếu người dùng là Admin (role_id = 1) hoặc Manager (role_id = 2), lấy tất cả phòng ban
@@ -39,31 +41,31 @@ class DepartmentController extends Controller
         } elseif ($user->role_id === 3) {
             // Nếu người dùng là Staff (role_id = 3)
             $createBy = json_decode($user->create_by, true); // Lấy giá trị create_by và chuyển thành mảng
-    
+
             // Lấy các phòng ban mà người dùng đã tạo
             $createdDepartments = collect(); // Tạo một Collection trống
-    
+
             if (!empty($createBy)) {
                 $createdDepartments = Department::with('users')
                     ->whereIn('id', $createBy) // Lọc phòng ban mà user đã tạo
                     ->get();
             }
-    
+
             // Lấy các phòng ban mà người dùng là thành viên
             $memberDepartments = $user->departments()->with('users')->get();
-    
+
             // Kết hợp cả hai bộ dữ liệu: các phòng ban đã tạo và các phòng ban thành viên
             $departments = $createdDepartments->merge($memberDepartments); // merge() làm việc với Collection
-    
+
         } else {
             // Trả về lỗi nếu người dùng không có quyền truy cập
             return response()->json(['error' => 'Unauthorized'], 403);
         }
-    
+
         // Trả về kết quả dưới dạng JSON
         return response()->json($departments);
     }
-    
+
     public function store(StoreDepartmentRequest $request)
     {
         try {
@@ -138,20 +140,65 @@ class DepartmentController extends Controller
 
     public function removeUserFromDepartment($departmentId, $userId)
     {
-        // Gọi phương thức xóa người dùng khỏi phòng ban
-        $this->deleteUserFromDepartment($departmentId, $userId);
+        $user = auth()->user(); // Lấy thông tin người dùng hiện tại
 
-        // Gọi phương thức xóa yêu cầu xác nhận
-        $this->deleteRequest($departmentId, $userId);
+        // Kiểm tra nếu người dùng có quyền (role_id = 1 hoặc 2) xóa thành viên bất kỳ
+        if ($user->role_id === 1 || $user->role_id === 2) {
+            // Gọi phương thức xóa người dùng khỏi phòng ban
+            $this->deleteUserFromDepartment($departmentId, $userId);
 
-        return response()->json(['message' => 'Người dùng đã được xóa khỏi phòng ban và yêu cầu xác nhận đã được xóa thành công.']);
+            // Gọi phương thức xóa yêu cầu xác nhận
+            $this->deleteRequest($departmentId, $userId);
+
+            return response()->json(['message' => 'Người dùng đã được xóa khỏi phòng ban và yêu cầu xác nhận đã được xóa thành công.']);
+        }
+
+        // Kiểm tra nếu user có role_id = 3 và có cột create_by có dữ liệu
+        if ($user->role_id === 3 && !is_null($user->create_by)) {
+            // Kiểm tra xem phòng ban trong cột create_by có chứa departmentId không
+            $createBy = json_decode($user->create_by, true); // Giả sử create_by lưu dưới dạng mảng JSON
+            if (in_array($departmentId, $createBy)) {
+                // Kiểm tra xem người dùng có nhiệm vụ nào chưa (dựa vào bảng assignments)
+                $hasAssignments = Assignment::where('user_id', $userId)->where('status', '!=', 'done')->exists(); // Giả sử trạng thái "completed" là trạng thái đã hoàn thành
+
+                if ($hasAssignments) {
+                    return response()->json([
+                        'error' => 'Không thể xóa người dùng khỏi phòng ban vì họ đang nhận nhiệm vụ.'
+                    ], 400);
+                }
+
+                // Gọi phương thức xóa người dùng khỏi phòng ban
+                $this->deleteUserFromDepartment($departmentId, $userId);
+
+                // Gọi phương thức xóa yêu cầu xác nhận
+                $this->deleteRequest($departmentId, $userId);
+
+                return response()->json(['message' => 'Người dùng đã được xóa khỏi phòng ban và yêu cầu xác nhận đã được xóa thành công.']);
+            } else {
+                // Nếu không phải phòng ban mà user tạo, trả về lỗi
+                return response()->json([
+                    'error' => 'Bạn không có quyền xóa thành viên trong phòng ban này.'
+                ], 403);
+            }
+        }
+
+
+        // Nếu user có role_id = 3 và create_by rỗng, không thể xóa thành viên khác
+        if ($user->role_id === 3 && is_null($user->create_by)) {
+            return response()->json([
+                'error' => 'Bạn không có quyền xóa thành viên khác trong phòng ban.'
+            ], 403);
+        }
+
+        // Nếu không thỏa mãn điều kiện nào, trả về lỗi Unauthorized
+        return response()->json(['error' => 'Unauthorized'], 403);
     }
 
     // Phương thức xóa người dùng khỏi phòng ban
     public function deleteUserFromDepartment($departmentId, $userId)
     {
         $department = Department::find($departmentId);
-        $this->authorize('delete', $department);
+        // $this->authorize('delete', $department);
 
         if (!$department) {
             return response()->json(['message' => 'Không tìm thấy phòng ban.'], 404);
@@ -391,6 +438,16 @@ class DepartmentController extends Controller
             // Kiểm tra quyền của người dùng (sử dụng Policy)
             $this->authorize('delete', $department); // Kiểm tra quyền xóa phòng ban
 
+            // Kiểm tra nếu phòng ban đang nhận nhiệm vụ
+            $taskCount = DB::table('task_department')
+                ->where('department_id', $department->id) // Tìm trong bảng phụ task_department
+                ->count();
+
+            if ($taskCount > 0) {
+                return response()->json([
+                    'error' => 'Không thể xóa phòng ban vì đang nhận nhiệm vụ.'
+                ], 400);
+            }
             // Lấy tất cả người dùng trong phòng ban, loại trừ người tạo
             $usersInDepartment = $department->users->pluck('id')->toArray();
             $creatorUserId = $department->create_by;
@@ -398,7 +455,7 @@ class DepartmentController extends Controller
             // Kiểm tra nếu có người khác ngoài người tạo
             if (count($usersInDepartment) > 1 && !in_array($creatorUserId, $usersInDepartment)) {
                 return response()->json([
-                    'error' => 'Department cannot be deleted because there are other members besides the creator.'
+                    'error' => 'Không thể xóa phòng ban vì còn thành viên.'
                 ], 400);
             }
 
@@ -406,11 +463,11 @@ class DepartmentController extends Controller
             // Nếu muốn xóa vĩnh viễn, sử dụng $department->forceDelete();
             $department->delete(); // Xóa mềm (soft delete)
 
-            return response()->json(['message' => 'Department soft deleted successfully'], 200);
+            return response()->json(['message' => 'Xóa phòng ban thành công.'], 200);
         } catch (\Illuminate\Auth\Access\AuthorizationException $e) {
             // Nếu người dùng không có quyền, trả về lỗi 403
             return response()->json([
-                'error' => 'You do not have permission to delete this department.'
+                'error' => 'Bạn không thể xóa phòng ban này.'
             ], 403);
         } catch (\Illuminate\Database\QueryException $e) {
             // Xử lý lỗi khóa ngoại, nếu có
