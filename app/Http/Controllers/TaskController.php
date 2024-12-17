@@ -360,12 +360,12 @@ class TaskController extends Controller
         try {
             // Lấy thông tin người dùng hiện tại
             $user = auth()->user();
-    
+
             // Tìm dự án theo ID
             $project = Project::findOrFail($project_id);
-    
+
             $departments = collect(); // Tạo một tập hợp trống để lưu kết quả
-    
+
             // Logic dựa trên role_id của người dùng
             if ($user->role_id === 1 || $user->role_id === 2) {
                 // Admin và Manager: Lấy tất cả các phòng ban thuộc dự án
@@ -376,7 +376,7 @@ class TaskController extends Controller
                     $createdProject = Project::where('id', $project->id)
                         ->where('user_id', $user->id) // Kiểm tra dự án được tạo bởi user
                         ->first();
-    
+
                     if ($createdProject) {
                         $departments = $createdProject->departments()->get();
                     }
@@ -389,7 +389,7 @@ class TaskController extends Controller
                         ->get();
                 }
             }
-    
+
             return response()->json([
                 'message' => 'Departments retrieved successfully',
                 'departments' => $departments
@@ -400,7 +400,7 @@ class TaskController extends Controller
             ], 500);
         }
     }
-    
+
 
     public function getTaskWithoutWorktime(Request $request)
     {

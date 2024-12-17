@@ -82,7 +82,7 @@ class UserController extends Controller
                     'email' => $requestedUser->email,
                     'phone_number' => $requestedUser->phone_number,
                     'email_verified_at' => $requestedUser->email_verified_at,
-                    'avatar' => url('avatar/' . $requestedUser->avatar),
+                    'avatar' => $requestedUser->avatar,
                     'comments' => $requestedUser->comments->map(function ($comment) {
                         return [
                             'content' => $comment->content,
@@ -104,7 +104,7 @@ class UserController extends Controller
                     'email' => $requestedUser->email,
                     'phone_number' => $requestedUser->phone_number,
                     'email_verified_at' => $requestedUser->email_verified_at,
-                    'avatar' => url('avatar/' . $requestedUser->avatar),
+                    'avatar' => $requestedUser->avatar,
                     'comments' => $requestedUser->comments->map(function ($comment) {
                         return [
                             'content' => $comment->content,
@@ -292,11 +292,14 @@ class UserController extends Controller
     {
         $user = $request->user(); // Người đang thực hiện cập nhật
         $requestedUser = User::find($id); // Người dùng được cập nhật
-
+       
         if (!$requestedUser) {
             return response()->json(['message' => 'User not found'], 404);
         }
-
+        // Chỉ cho phép người dùng chỉnh sửa chính bản thân họ
+        if ($user->id != $requestedUser->id) {
+            return response()->json(['message' => 'Unauthorized to update other users'], 403);
+        }
         // Lấy dữ liệu đã xác thực từ request
         $updatedData = $request->validated();
 
@@ -369,12 +372,16 @@ class UserController extends Controller
     public function updateAvatar(Request $request, $id)
     {
         // Tìm người dùng theo ID
-        $user = User::find($id);
-
+        // $user = User::find($id);
+        $user = Auth::user();  // Lấy thông tin người dùng từ token (nếu sử dụng Sanctum hoặc Passport)
         if (!$user) {
             return response()->json(['message' => 'User not found'], 404);
         }
+        $isGoogleUser = $user->google_id != null; // Check if the user logged in via Google
 
+        if ($isGoogleUser && !$request->hasFile('avatar')) {
+            return response()->json(['message' => 'No avatar file provided'], 400);
+        }
         // Kiểm tra xem có file ảnh không
         if ($request->hasFile('avatar')) {
             try {
@@ -383,15 +390,15 @@ class UserController extends Controller
                     // Xóa ảnh cũ từ thư mục public/avatar
                     $oldAvatarPath = public_path('avatar/' . $user->avatar);
                     if (file_exists($oldAvatarPath)) {
-                        unlink($oldAvatarPath); // Xóa tệp ảnh cũ
-                        Log::info('Old avatar deleted:', ['avatar' => $user->avatar]); // Log thông tin ảnh cũ đã xóa
+                        unlink($oldAvatarPath);  // Xóa tệp ảnh cũ
+                        Log::info('Old avatar deleted:', ['avatar' => $user->avatar]);  // Log thông tin ảnh cũ đã xóa
                     }
                 }
 
                 // Lưu avatar mới vào thư mục public/avatar
                 $avatarFile = $request->file('avatar');
                 $avatarFileName = time() . '_' . $avatarFile->getClientOriginalName();
-                $avatarPath = public_path('avatar/' . $avatarFileName); // Đường dẫn tuyệt đối tới ảnh mới
+                $avatarPath = public_path('avatar/' . $avatarFileName);  // Đường dẫn tuyệt đối tới ảnh mới
 
                 // Di chuyển file ảnh vào thư mục public/avatar
                 $avatarFile->move(public_path('avatar'), $avatarFileName);
