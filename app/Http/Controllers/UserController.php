@@ -82,7 +82,7 @@ class UserController extends Controller
                     'email' => $requestedUser->email,
                     'phone_number' => $requestedUser->phone_number,
                     'email_verified_at' => $requestedUser->email_verified_at,
-                    'avatar' => $requestedUser->avatar,
+                    'avatar' => url('avatar/' . $requestedUser->avatar),
                     'comments' => $requestedUser->comments->map(function ($comment) {
                         return [
                             'content' => $comment->content,
@@ -104,7 +104,7 @@ class UserController extends Controller
                     'email' => $requestedUser->email,
                     'phone_number' => $requestedUser->phone_number,
                     'email_verified_at' => $requestedUser->email_verified_at,
-                    'avatar' => $requestedUser->avatar,
+                    'avatar' => url('avatar/' . $requestedUser->avatar),
                     'comments' => $requestedUser->comments->map(function ($comment) {
                         return [
                             'content' => $comment->content,
@@ -370,11 +370,11 @@ class UserController extends Controller
     {
         // Tìm người dùng theo ID
         $user = User::find($id);
-    
+
         if (!$user) {
             return response()->json(['message' => 'User not found'], 404);
         }
-    
+
         // Kiểm tra xem có file ảnh không
         if ($request->hasFile('avatar')) {
             try {
@@ -387,28 +387,28 @@ class UserController extends Controller
                         Log::info('Old avatar deleted:', ['avatar' => $user->avatar]); // Log thông tin ảnh cũ đã xóa
                     }
                 }
-    
+
                 // Lưu avatar mới vào thư mục public/avatar
                 $avatarFile = $request->file('avatar');
                 $avatarFileName = time() . '_' . $avatarFile->getClientOriginalName();
                 $avatarPath = public_path('avatar/' . $avatarFileName); // Đường dẫn tuyệt đối tới ảnh mới
-    
+
                 // Di chuyển file ảnh vào thư mục public/avatar
                 $avatarFile->move(public_path('avatar'), $avatarFileName);
-    
+
                 // Cập nhật đường dẫn mới vào cơ sở dữ liệu (chỉ cần lưu tên file ảnh)
                 $user->avatar = $avatarFileName;
                 $user->save();
-    
+
                 Log::info('New avatar path saved:', ['avatar' => $avatarPath]); // Log thông tin ảnh mới
-    
+
                 return response()->json(['message' => 'Avatar updated successfully', 'avatar' => $avatarFileName]);
             } catch (\Exception $e) {
                 Log::error('Failed to update avatar: ' . $e->getMessage());
                 return response()->json(['error' => 'Failed to update avatar: ' . $e->getMessage()], 500);
             }
         }
-    
+
         return response()->json(['message' => 'No avatar file provided'], 400);
     }
 
@@ -787,8 +787,8 @@ class UserController extends Controller
             return response()->json(['message' => 'Error processing Google login', 'error' => $e->getMessage()], 500);
         }
     }
-    public function hello(){
+    public function hello()
+    {
         return response()->json('hello world!');
     }
-    
 }

@@ -174,6 +174,17 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/tasks/{taskId}/comments', [CommentController::class, 'getCommentsByTask']); // Lấy bình luận của task
 
 
+    //Route cho Dashboard
+    Route::get('/dashboard/task-time', [DashboardController::class, 'getTotalTaskTime']);
+    Route::get('/dashboard/task-status', [DashboardController::class, 'getTaskCountsByStatusGrouped']);
+    Route::get('/dashboard/user-task-time', [DashboardController::class, 'getUserTaskStatistics']);
+    Route::get('/dashboard/worktime-task', [DashboardController::class, 'getWorktimeWithTasks']);
+
+
+
+
+
+
     // WorkTimes
     Route::get('/worktimes', [WorktimesController::class, 'index']);
     Route::get('/worktimes/{id}', [WorktimesController::class, 'show']);

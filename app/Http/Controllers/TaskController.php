@@ -198,55 +198,62 @@ class TaskController extends Controller
 
     public function getTaskDetails($taskId, Request $request)
     {
-        $user = $request->user(); // Lấy người dùng hiện tại
+        $user = $request->user();
         $task = Task::with([
             'comments' => function ($query) {
-                // Sắp xếp các bình luận theo thời gian mới nhất
-                $query->orderBy('created_at', 'DESC');
+                $query->whereNull('parent_id')
+                    ->orderBy('created_at', 'DESC');
             },
-            'comments.user:id,fullname,avatar', // Lấy thông tin người dùng bình luận
-            'comments.files:id,file_name,comment_id', // Lấy file đính kèm trong bình luận
-            'projects.departments.users' // Lấy các người dùng trong phòng ban của dự án
+            'comments.user:id,fullname,avatar',
+            'comments.files',
+            'comments.replies.user:id,fullname,avatar',
+            'comments.replies.files',
+            'comments.replies.replies.user:id,fullname,avatar',
+            'comments.replies.replies.files',
+            'comments.replies.replies.replies.user:id,fullname,avatar',
+            'comments.replies.replies.replies.files',
+            'comments.replies.replies.replies.replies.user:id,fullname,avatar',
+            'comments.replies.replies.replies.replies.files',
+            'projects.departments.users'
         ])->find($taskId);
 
-        if (!$task) {
-            return response()->json(['message' => 'Task not found'], 404);
-        }
+        // Xử lý dữ liệu trả về với hàm đệ quy
+        $formatComment = function ($comment) use (&$formatComment) {
+            $formattedComment = [
+                'id' => $comment->id,
+                'comment' => $comment->comment,
+                'created_at' => $comment->created_at,
+                'user' => [
+                    'id' => $comment->user->id,
+                    'fullname' => $comment->user->fullname,
+                    'avatar' => $comment->user->avatar
+                ],
+                'files' => $comment->files->map(function ($file) {
+                    return [
+                        'id' => $file->id,
+                        'file_name' => $file->file_name,
+                        'file_path' => $file->file_path
+                    ];
+                })
+            ];
 
-        // Kiểm tra xem người dùng có quyền truy cập vào task này hay không
-        // Người dùng cần phải là thành viên của phòng ban của task và được phân công task
+            if ($comment->replies) {
+                $formattedComment['replies'] = $comment->replies->map(function ($reply) use ($formatComment) {
+                    return $formatComment($reply);
+                });
+            }
 
-        // Lấy tất cả phòng ban mà người dùng tham gia
-        $userDepartments = $user->departments->pluck('id');
+            return $formattedComment;
+        };
 
-        // Lấy tất cả phòng ban liên quan đến task này
-        $taskDepartments = $task->projects->flatMap(function ($project) {
-            return $project->departments->pluck('id'); // Lấy tất cả phòng ban của dự án chứa task
+        $formattedComments = $task->comments->map(function ($comment) use ($formatComment) {
+            return $formatComment($comment);
         });
 
-        // Kiểm tra nếu người dùng có quyền xem task (nằm trong phòng ban của task hoặc được phân công task)
-        $assignedTasks = $user->tasks->pluck('id'); // Lấy các task mà người dùng được phân công
-
-        // Kiểm tra nếu người dùng thuộc phòng ban của task hoặc được phân công task này
-        if ($assignedTasks->contains($taskId) || $userDepartments->intersect($taskDepartments)->isNotEmpty()) {
-            return response()->json([
-                'task' => $task,
-                'comments' => $task->comments->map(function ($comment) {
-                    return [
-                        'content' => $comment->content,
-                        'task_id' => $comment->task_id,
-                        'user' => [
-                            'fullname' => $comment->user->fullname,
-                            'avatar' => $comment->user->avatar,
-                        ],
-                        'files' => $comment->files,
-                    ];
-                }),
-            ]);
-        }
-
-        // Nếu không phải thành viên phòng ban hoặc không được phân công task
-        return response()->json(['message' => 'Unauthorized'], 403);
+        return response()->json([
+            'task' => $task,
+            'comments' => $formattedComments
+        ]);
     }
 
     // cập nhật task

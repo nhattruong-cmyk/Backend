@@ -42,9 +42,23 @@ class NotificationController extends Controller
     // Đánh dấu thông báo là đã đọc
     public function markAsRead($id)
     {
-        $notification = Notification::findOrFail($id);
-        $notification->markAsRead();  // Sử dụng phương thức markAsRead() của Laravel
-        return response()->json($notification);
+        try {
+            // Tìm thông báo theo ID
+            $notification = Notification::find($id);
+
+            // Kiểm tra nếu thông báo không tồn tại
+            if (!$notification) {
+                return response()->json(['message' => 'Notification not found'], 404);
+            }
+
+            // Cập nhật trường read_at để đánh dấu thông báo đã đọc
+            $notification->read_at = now(); // Đánh dấu thời gian hiện tại
+            $notification->save(); // Lưu lại
+
+            return response()->json($notification); // Trả về thông báo đã cập nhật
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'Error marking notification as read', 'error' => $e->getMessage()], 500);
+        }
     }
 
     // Xóa thông báo (soft delete)
