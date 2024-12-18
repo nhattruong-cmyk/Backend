@@ -14,29 +14,7 @@ class TaskPolicy
 
     public function viewAny(User $user): bool
     {
-        // Admin có thể xem tất cả task
-        if ($user->role_id === 1 || $user->role_id === 3) {
-            return true;
-        }
-    
-        // Manager có thể xem tất cả task
-        if ($user->role_id === 2) {
-            return true;
-        }
-    
-        // Staff (role_id = 3) có thể xem task nếu:
-        if ($user->role_id === 3) {
-            // Nếu có dữ liệu trong cột create_by (user tạo ra dự án), xem tất cả phân công
-            if (!is_null($user->create_by)) {
-                return true;
-            }
-    
-            // Nếu không có dữ liệu trong cột create_by, chỉ xem các task mà họ tạo ra
-            return DB::table('tasks')->where('user_id', $user->id)->exists();
-        }
-    
-        // Mặc định không cho phép xem project
-        return false;
+        
     }
     
     public function view(User $user, Task $task): bool

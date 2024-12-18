@@ -24,10 +24,15 @@ class UpdateUserRequest extends FormRequest
     {
         // Các quy tắc xác thực cho request
         $rules = [
-            'fullname' => 'required|string|max:255',
-            'phone_number' => 'nullable|numeric|unique:users,phone_number', // Kiểm tra trùng số điện thoại
-            'avatar' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048', // Thêm quy tắc cho ảnh đại diện
-            'create_by' => 'sometimes|nullable|integer|between:1000,9999', // Thêm quy tắc cho create_by nếu cần
+            'fullname' => 'sometimes|string|max:255', // Chỉ xác thực nếu fullname được gửi lên
+            'phone_number' => [
+                'sometimes',
+                'nullable',
+                'regex:/^\d{10,13}$/', // Chỉ chấp nhận số từ 10 đến 13 chữ số
+                'unique:users,phone_number,' . $this->route('id'),
+            ],
+            'avatar' => 'sometimes|image|mimes:jpeg,png,jpg,gif|max:2048',
+            'create_by' => 'sometimes|nullable|integer|between:1000,9999',
         ];
 
         // Kiểm tra nếu email có thay đổi không
@@ -58,7 +63,7 @@ class UpdateUserRequest extends FormRequest
             'avatar.max' => 'Avatar không được lớn hơn 2MB.',
             'role_id.integer' => 'phân quyền không hợp lệ.',
             'role_id.exists' => 'phân quyền không tồn tại.',
-            'phone_number.digits' => 'Số điện thoại phải có 10 chữ số.',
+            'phone_number.regex' => 'Số điện thoại phải có từ 10 đến 13 chữ số.',
             'phone_number.unique' => 'Số điện thoại đã tồn tại trong hệ thống.',
         ];
     }

@@ -16,7 +16,11 @@ class Task extends Model
         return $this->belongsToMany(Project::class, 'project_task', 'task_id', 'project_id')
             ->withTimestamps();
     }
-
+    public function project()
+    {
+        return $this->belongsTo(Project::class, 'project_id');
+    }
+    
     // Model Task
 // Trong model Task
     public function worktime()

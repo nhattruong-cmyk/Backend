@@ -5,7 +5,10 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\Project;
 use App\Models\Worktimes;
+use App\Models\Department;
+use App\Models\Task;
 use Carbon\Carbon;
+use Exception;
 use Illuminate\Support\Facades\DB;
 
 class DashboardController extends Controller
@@ -36,7 +39,7 @@ class DashboardController extends Controller
     {
         //
     }
-    
+
     public function getTotalTaskTime()
     {
         try {
@@ -231,32 +234,29 @@ class DashboardController extends Controller
     public function getWorktimeWithTasks()
     {
         try {
-            // Lấy thông tin user hiện tại
             $user = auth()->user();
     
-            // Nếu user có role_id = 1 hoặc 2 (Admin hoặc Manager)
-            if (in_array($user->role_id, [1, 2])) {
-                // Lấy tất cả worktime cùng với các task liên quan
+            if ($user->role_id === 1 || $user->role_id === 2) {
                 $worktimes = Worktimes::with(['tasks' => function ($query) {
-                    $query->select('id', 'task_name', 'status', 'worktime_id', 'task_time'); // Thêm cột task_time
-                }])->get(['id', 'name', 'status']); // Lấy cột cần thiết từ worktime
+                    $query->select('id', 'task_name', 'status', 'worktime_id', 'task_time', 'project_id')
+                        ->with(['project:id,project_name']); // Sử dụng quan hệ project
+                }])->get(['id', 'name', 'status']);
     
-                // Định dạng lại dữ liệu theo yêu cầu
                 $result = $worktimes->map(function ($worktime) {
-                    // Tính tổng task_time của tất cả các task trong worktime này
                     $totalTaskTime = $worktime->tasks->sum('task_time');
     
                     return [
                         'id_worktime' => $worktime->id,
                         'name' => $worktime->name,
                         'status' => $worktime->status,
-                        'total_task_time' => $totalTaskTime, // Thêm tổng thời gian của các task
+                        'total_task_time' => $totalTaskTime,
                         'tasks' => $worktime->tasks->map(function ($task) {
                             return [
                                 'id' => $task->id,
                                 'task_name' => $task->task_name,
                                 'status' => $task->status,
-                                'task_time' => $task->task_time, // Trả về task_time cho từng task
+                                'task_time' => $task->task_time,
+                                'project_name' => $task->project ? $task->project->project_name : null, // Lấy tên dự án
                             ];
                         }),
                     ];
@@ -266,34 +266,30 @@ class DashboardController extends Controller
                     'message' => 'Thống kê worktime và tasks thành công.',
                     'data' => $result
                 ], 200);
-            }
-    
-            // Nếu user có role_id = 3 (Staff), chỉ lấy worktime và task của user đó
-            elseif ($user->role_id === 3) {
-                // Lấy worktime của user hiện tại và các task liên quan
+            } elseif ($user->role_id === 3) {
                 $worktimes = Worktimes::whereHas('tasks', function ($query) use ($user) {
-                    $query->where('user_id', $user->id); // Lọc task theo user_id
+                    $query->where('user_id', $user->id);
                 })->with(['tasks' => function ($query) use ($user) {
-                    $query->where('user_id', $user->id) // Lọc task theo user_id
-                          ->select('id', 'task_name', 'status', 'worktime_id', 'task_time');
-                }])->get(['id', 'name', 'status']); // Lấy cột cần thiết từ worktime
+                    $query->where('user_id', $user->id)
+                        ->select('id', 'task_name', 'status', 'worktime_id', 'task_time', 'project_id')
+                        ->with(['project:id,project_name']);
+                }])->get(['id', 'name', 'status']);
     
-                // Định dạng lại dữ liệu theo yêu cầu
                 $result = $worktimes->map(function ($worktime) {
-                    // Tính tổng task_time của tất cả các task trong worktime này
                     $totalTaskTime = $worktime->tasks->sum('task_time');
     
                     return [
                         'id_worktime' => $worktime->id,
                         'name' => $worktime->name,
                         'status' => $worktime->status,
-    'total_task_time' => $totalTaskTime, // Thêm tổng thời gian của các task
+                        'total_task_time' => $totalTaskTime,
                         'tasks' => $worktime->tasks->map(function ($task) {
                             return [
                                 'id' => $task->id,
                                 'task_name' => $task->task_name,
                                 'status' => $task->status,
-                                'task_time' => $task->task_time, // Trả về task_time cho từng task
+                                'task_time' => $task->task_time,
+                                'project_name' => $task->project ? $task->project->project_name : null,
                             ];
                         }),
                     ];
@@ -305,12 +301,137 @@ class DashboardController extends Controller
                 ], 200);
             }
     
-            // Trường hợp không đủ quyền
             return response()->json(['error' => 'Bạn không có quyền truy cập thông tin này.'], 403);
-            
         } catch (\Exception $e) {
             return response()->json([
                 'error' => 'Lỗi khi thống kê worktime và tasks: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+    
+    
+
+    public function getDepartments(Request $request)
+    {
+        try {
+            $user = auth()->user(); // Lấy thông tin người dùng hiện tại
+
+            if ($user->role_id === 1 || $user->role_id === 2) {
+                // Admin hoặc Manager: Đếm tất cả các phòng ban
+                $departmentCount = Department::count();
+            } elseif ($user->role_id === 3) {
+                // Staff: Đếm số lượng phòng ban mà họ tham gia
+                $departmentCount = $user->departments()->count(); // Giả sử có quan hệ departments trong model User
+            } else {
+                // Vai trò không hợp lệ hoặc không được phép truy cập
+                return response()->json(['error' => 'Unauthorized'], 403);
+            }
+
+            return response()->json([
+                'total_departments' => $departmentCount,
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Đã xảy ra lỗi khi thống kê số lượng phòng ban: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    public function getProjects(Request $request)
+    {
+        try {
+            $user = auth()->user();
+
+            if ($user->role_id === 1 || $user->role_id === 2) {
+                // Admin hoặc Manager: Đếm tất cả dự án
+                $projectCount = Project::count();
+            } elseif ($user->role_id === 3) {
+                // Staff:
+
+                // Lấy danh sách dự án do họ tạo (dựa vào user_id trong bảng projects)
+                $createdProjectIds = Project::where('user_id', $user->id)->pluck('id')->toArray();
+
+                // Lấy các phòng ban mà họ tham gia
+                $departmentIds = DB::table('department_user')
+                    ->where('user_id', $user->id)
+                    ->pluck('department_id');
+
+                // Lấy danh sách dự án liên quan đến các phòng ban mà họ tham gia (dựa vào bảng project_department)
+                $relatedProjectIds = DB::table('project_department')
+                    ->whereIn('department_id', $departmentIds)
+                    ->pluck('project_id')
+                    ->toArray();
+
+                // Kết hợp danh sách dự án họ tạo và dự án liên quan
+                $allProjectIds = array_unique(array_merge($createdProjectIds, $relatedProjectIds));
+
+                // Đếm số lượng dự án duy nhất
+                $projectCount = count($allProjectIds);
+            } else {
+                // Nếu không phải Admin, Manager hoặc Staff, trả về lỗi Unauthorized
+                return response()->json(['error' => 'Unauthorized'], 403);
+            }
+
+            return response()->json([
+                'total_projects' => $projectCount,
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Lỗi khi tìm nạp dự án: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    public function getUserAssignedTasks(Request $request)
+    {
+        try {
+            $user = auth()->user();
+
+            if ($user->role_id === 1 || $user->role_id === 2) {
+                // Admin hoặc Manager: Đếm tất cả nhiệm vụ
+                $taskCount = Task::count();
+            } elseif ($user->role_id === 3) {
+                // Staff: Đếm các nhiệm vụ được giao cho họ (dựa vào user_id trong bảng tasks)
+                $taskCount = Task::where('user_id', $user->id)->count();
+            } else {
+                // Nếu không phải Admin, Manager hoặc Staff, trả về lỗi Unauthorized
+                return response()->json(['error' => 'Unauthorized'], 403);
+            }
+
+            return response()->json([
+                'total_assigned_tasks' => $taskCount,
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Lỗi khi tìm nạp nhiệm vụ: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    public function getUserActivities(Request $request)
+    {
+        try {
+            // Lấy thông tin user hiện tại
+            $user = auth()->user();
+
+            // Chỉ xử lý nếu user có role_id = 3
+            if ($user->role_id !== 3) {
+                return response()->json(['error' => 'Unauthorized'], 403);
+            }
+
+            // Lấy danh sách hoạt động từ bảng activity_logs của user hiện tại
+            $activities = DB::table('activity_logs')
+                ->where('user_id', $user->id)
+                ->orderBy('created_at', 'desc') // Sắp xếp theo thời gian giảm dần
+                ->get();
+
+            return response()->json([
+                'message' => 'Danh sách hoạt động của người dùng được lấy thành công.',
+                'activities' => $activities,
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Lỗi khi lấy danh sách hoạt động: ' . $e->getMessage(),
             ], 500);
         }
     }
