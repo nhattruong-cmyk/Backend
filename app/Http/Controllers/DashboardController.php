@@ -4,8 +4,10 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Project;
-use App\Models\Worktimes;
+use App\Models\Worktime;
 use App\Models\Department;
+use App\Models\ActivityLog;
+use App\Http\Controllers\ActivityLogController;
 use App\Models\Task;
 use Carbon\Carbon;
 use Exception;
@@ -237,7 +239,7 @@ class DashboardController extends Controller
             $user = auth()->user();
     
             if ($user->role_id === 1 || $user->role_id === 2) {
-                $worktimes = Worktimes::with(['tasks' => function ($query) {
+                $worktimes = Worktime::with(['tasks' => function ($query) {
                     $query->select('id', 'task_name', 'status', 'worktime_id', 'task_time', 'project_id')
                         ->with(['project:id,project_name']); // Sử dụng quan hệ project
                 }])->get(['id', 'name', 'status']);
@@ -267,7 +269,7 @@ class DashboardController extends Controller
                     'data' => $result
                 ], 200);
             } elseif ($user->role_id === 3) {
-                $worktimes = Worktimes::whereHas('tasks', function ($query) use ($user) {
+                $worktimes = Worktime::whereHas('tasks', function ($query) use ($user) {
                     $query->where('user_id', $user->id);
                 })->with(['tasks' => function ($query) use ($user) {
                     $query->where('user_id', $user->id)
@@ -408,26 +410,27 @@ class DashboardController extends Controller
         }
     }
 
-    public function getUserActivities(Request $request)
+    public function getUserActivities()
     {
         try {
             // Lấy thông tin user hiện tại
             $user = auth()->user();
-
-            // Chỉ xử lý nếu user có role_id = 3
-            if ($user->role_id !== 3) {
+    
+            if ($user->role_id === 1 || $user->role_id === 2) {
+                // Nếu role_id = 1 hoặc 2 (Admin hoặc Manager), lấy danh sách hoạt động của tất cả user
+                $logs = ActivityLog::with('user', 'loggable')->get();
+            } elseif ($user->role_id === 3) {
+                // Nếu role_id = 3 (Staff), chỉ lấy danh sách hoạt động của user đang đăng nhập
+                $logs = ActivityLog::with('user', 'loggable')->where('user_id', $user->id)->get();
+            } else {
+                // Nếu không thuộc role hợp lệ, trả về lỗi Unauthorized
                 return response()->json(['error' => 'Unauthorized'], 403);
             }
-
-            // Lấy danh sách hoạt động từ bảng activity_logs của user hiện tại
-            $activities = DB::table('activity_logs')
-                ->where('user_id', $user->id)
-                ->orderBy('created_at', 'desc') // Sắp xếp theo thời gian giảm dần
-                ->get();
-
+    
+            // Trả về dữ liệu dưới dạng JSON
             return response()->json([
-                'message' => 'Danh sách hoạt động của người dùng được lấy thành công.',
-                'activities' => $activities,
+                'message' => 'Danh sách hoạt động được lấy thành công.',
+                'logs' => $logs,
             ], 200);
         } catch (\Exception $e) {
             return response()->json([

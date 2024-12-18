@@ -4,7 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Task;
 use App\Models\Project;
-use App\Models\Worktimes;
+use App\Models\Worktime;
 use Illuminate\Support\Facades\Log;
 use App\Models\Assignment;
 use App\Models\Department;
@@ -543,7 +543,7 @@ class TaskController extends Controller
             $currentTime = now();
 
             // Lấy danh sách các worktime gần hết hạn (ví dụ: hết hạn trong vòng 1 ngày)
-            $worktimesAboutToExpire = Worktimes::where('end_date', '<=', $currentTime->addDay())
+            $worktimesAboutToExpire = Worktime::where('end_date', '<=', $currentTime->addDay())
                 ->whereHas('tasks', function ($query) {
                     $query->where('status', '!=', 'completed'); // Lọc các task chưa hoàn thành
                 })
@@ -561,7 +561,7 @@ class TaskController extends Controller
                 $pendingTasks = $worktime->tasks()->where('status', '!=', 'completed')->get();
 
                 // Tìm một worktime mới phù hợp (ví dụ: worktime bắt đầu sau ngày hiện tại)
-                $newWorktime = Worktimes::where('start_date', '>', $currentTime)
+                $newWorktime = Worktime::where('start_date', '>', $currentTime)
                     ->where('end_date', '>', $worktime->end_date) // Phải có thời gian kết thúc sau worktime cũ
                     ->first();
 

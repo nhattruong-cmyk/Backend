@@ -4,7 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreWorktimesRequest;
 use App\Http\Requests\UpdateWorktimesRequest;
-use App\Models\Worktimes;
+use App\Models\Worktime;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use App\Models\ActivityLog;
@@ -24,12 +24,12 @@ class WorktimesController extends Controller
         // Truy vấn dữ liệu Worktimes theo quyền của user
         if ($request->user()->role_id === 1 || $request->user()->role_id === 2) {
             // Admin và Manager có thể xem tất cả Worktimes
-            $worktimes = Worktimes::with('user')->whereIn('status', [1, 2])->get();
+            $worktimes = Worktime::with('user')->whereIn('status', [1, 2])->get();
         } elseif ($request->user()->role_id === 3) {
             // Staff có thể xem Worktimes tùy thuộc vào các điều kiện
             if (!is_null($request->user()->create_by)) {
                 // Nếu Staff có create_by, họ có thể xem các Worktime mà họ đã tạo
-                $worktimes = Worktimes::where('user_id', $request->user()->id)
+                $worktimes = Worktime::where('user_id', $request->user()->id)
                     ->whereIn('status', [1, 2])
                     ->with('user')->get();
             } elseif (is_null($request->user()->create_by)) {
@@ -42,7 +42,7 @@ class WorktimesController extends Controller
                     ->pluck('project_id')->toArray();
 
                 // Lấy các worktimes có project_id trong danh sách các project mà user tham gia
-                $worktimes = Worktimes::whereIn('project_id', $projects)
+                $worktimes = Worktime::whereIn('project_id', $projects)
                     ->whereIn('status', [1, 2])
                     ->with('user')  // Kết hợp thông tin người dùng
                     ->get();
@@ -66,7 +66,7 @@ class WorktimesController extends Controller
             $validatedData['user_id'] = Auth::id();
 
             // Tạo Worktime mới
-            $worktime = Worktimes::create($validatedData);
+            $worktime = Worktime::create($validatedData);
 
             return response()->json([
                 'message' => 'Worktime created successfully',
@@ -87,7 +87,7 @@ class WorktimesController extends Controller
 
     public function show($id)
     {
-        $worktimes = Worktimes::with('user')->find($id);
+        $worktimes = Worktime::with('user')->find($id);
         return response()->json($worktimes, 200);
     }
 
@@ -98,7 +98,7 @@ class WorktimesController extends Controller
             $validatedData = $request->validated();
 
             // Tìm Worktime cần cập nhật
-            $worktime = Worktimes::findOrFail($id);
+            $worktime = Worktime::findOrFail($id);
 
             // Đảm bảo `user_id` không bị thay đổi bằng cách loại bỏ khỏi dữ liệu cập nhật
             unset($validatedData['user_id']);
@@ -132,7 +132,7 @@ class WorktimesController extends Controller
     {
         try {
             // Tìm assignment theo ID
-            $worktime = Worktimes::findOrFail($id);
+            $worktime = Worktime::findOrFail($id);
 
             // Phân quyền xóa phân công
             $this->authorize('delete', $worktime); // Truyền assignment vào để phân quyền
@@ -155,7 +155,7 @@ class WorktimesController extends Controller
             ]);
 
             // Tìm worktime theo ID
-            $worktime = Worktimes::findOrFail($id);
+            $worktime = Worktime::findOrFail($id);
 
             // Lấy trạng thái mới và cũ
             $newStatus = $request->input('status');
@@ -213,7 +213,7 @@ class WorktimesController extends Controller
 
     public function trashedWorktimes()
     {
-        $trashedWorktimes = Worktimes::onlyTrashed()->get();
+        $trashedWorktimes = Worktime::onlyTrashed()->get();
         return response()->json($trashedWorktimes);
     }
 
@@ -221,7 +221,7 @@ class WorktimesController extends Controller
     {
         try {
             // Tìm Worktime đã bị xóa mềm
-            $worktime = Worktimes::onlyTrashed()->findOrFail($id);
+            $worktime = Worktime::onlyTrashed()->findOrFail($id);
 
             // Xóa vĩnh viễn (force delete)
             $worktime->forceDelete();
@@ -243,7 +243,7 @@ class WorktimesController extends Controller
             $user = auth()->user();
     
             // Tìm Worktime đã bị xóa mềm
-            $worktime = Worktimes::onlyTrashed()->findOrFail($id);
+            $worktime = Worktime::onlyTrashed()->findOrFail($id);
     
             // Kiểm tra quyền khôi phục Worktime (sử dụng Policy)
             $this->authorize('restore', $worktime); // Kiểm tra quyền restore thông qua Policy
@@ -255,7 +255,7 @@ class WorktimesController extends Controller
             ActivityLog::create([
                 'user_id' => $user->id, // Người thực hiện hành động
                 'loggable_id' => $worktime->id, // ID của Worktime
-                'loggable_type' => 'App\Models\Worktimes', // Loại đối tượng (Worktime)
+                'loggable_type' => 'App\Models\Worktime', // Loại đối tượng (Worktime)
                 'action' => 'restored', // Hành động khôi phục
                 'changes' => json_encode(['restored_worktime_id' => $worktime->id]), // Lưu ID của Worktime đã được khôi phục
             ]);
@@ -286,14 +286,14 @@ class WorktimesController extends Controller
         $targetWorktimeId = $request->input('target_worktime_id'); // Worktime đích
 
         // Tìm worktime nguồn
-        $sourceWorktime = Worktimes::find($worktimeId);
+        $sourceWorktime = Worktime::find($worktimeId);
         if (!$sourceWorktime) {
             return response()->json(['error' => 'Worktime nguồn không tồn tại.'], 404);
         }
 
         // Nếu có worktime đích, kiểm tra tính hợp lệ
         if ($targetWorktimeId) {
-            $targetWorktime = Worktimes::find($targetWorktimeId);
+            $targetWorktime = Worktime::find($targetWorktimeId);
             if (!$targetWorktime) {
                 return response()->json(['error' => 'Worktime đích không tồn tại.'], 404);
             }

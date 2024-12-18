@@ -5,7 +5,7 @@ namespace App\Http\Requests;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Http\Exceptions\HttpResponseException;
-use App\Models\Worktimes;
+use App\Models\Worktime;
 
 class StoreTaskRequest extends FormRequest
 {
@@ -36,7 +36,7 @@ class StoreTaskRequest extends FormRequest
                 function ($attribute, $value, $fail) {
                     // Kiểm tra nếu có worktime_id
                     if ($this->input('worktime_id')) {
-                        $worktime = Worktimes::find($this->input('worktime_id'));
+                        $worktime = Worktime::find($this->input('worktime_id'));
     
                         if ($worktime) {
                             // Kiểm tra nếu start_date không nằm trong khoảng thời gian của worktime
@@ -55,7 +55,7 @@ class StoreTaskRequest extends FormRequest
                 function ($attribute, $value, $fail) {
                     // Kiểm tra nếu có worktime_id
                     if ($this->input('worktime_id')) {
-                        $worktime = Worktimes::find($this->input('worktime_id'));
+                        $worktime = Worktime::find($this->input('worktime_id'));
     
                         if ($worktime) {
                             // Kiểm tra nếu end_date không nằm trong khoảng thời gian của worktime
