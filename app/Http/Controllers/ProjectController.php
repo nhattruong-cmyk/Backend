@@ -22,7 +22,7 @@ class ProjectController extends Controller
     public function index()
     {
         // Kiểm tra quyền của người dùng (sử dụng Policy)
-        $this->authorize('viewAny', Project::class);
+        // $this->authorize('viewAny', Project::class);
 
         // Lấy thông tin người dùng hiện tại
         $user = auth()->user();

@@ -23,11 +23,11 @@ class AssignmentController extends Controller
 {
     public function index(Request $request)
     {
-        // Kiểm tra quyền truy cập (Sử dụng Policy)
-        $this->authorize('viewAny', Assignment::class);
-
-        $user = $request->user();
-
+        // // Kiểm tra quyền truy cập (Sử dụng Policy)
+        // $this->authorize('viewAny', Assignment::class);
+    
+        $user = auth()->user();
+    
         // Kiểm tra quyền truy cập cho Admin và Manager
         if ($user->role_id === 1 || $user->role_id === 2) {
             // Admin và Manager có thể xem tất cả assignments
@@ -36,11 +36,14 @@ class AssignmentController extends Controller
             // Staff
             if (!is_null($user->create_by)) {
                 // Nếu có create_by, Staff có quyền xem tất cả assignments mà họ là taskmaster
-                $assignments = Assignment::with('user', 'department', 'task')->get();
+                $assignments = Assignment::with('user', 'department', 'task')
+                    ->where('taskmaster', $user->id) // Nhiệm vụ mà user là taskmaster
+                    ->orWhere('user_id', $user->id)  // Nhiệm vụ mà user được giao
+                    ->get();
             } else {
                 // Nếu không có create_by, lấy các assignments mà user đã tạo hoặc được phân công cho họ
                 $assignments = Assignment::where('user_id', $user->id) // Các phân công do user nhận
-                    ->orWhere('taskmaster', $user->id) // Các phân công mà user đã tạo
+                    ->orWhere('user_id', $user->id) // Các phân công mà user đã tạo
                     ->with('user', 'department', 'task')
                     ->get();
             }
@@ -48,9 +51,12 @@ class AssignmentController extends Controller
             // Nếu không thỏa mãn điều kiện, trả về lỗi Unauthorized
             return response()->json(['error' => 'Unauthorized'], 403);
         }
-
+    
         return response()->json($assignments);
     }
+    
+    
+    
 
     public function show($id)
     {

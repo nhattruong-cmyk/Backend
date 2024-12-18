@@ -418,7 +418,6 @@ class UserController extends Controller
 
         return response()->json(['message' => 'No avatar file provided'], 400);
     }
-
     // Xóa người dùng (mềm)
     public function destroy(Request $request, $id)
     {
@@ -728,17 +727,27 @@ class UserController extends Controller
                 return response()->json(['message' => 'Invalid Google token'], 400);
             }
 
-            $email = $payload['email'];
-            $fullname = $payload['name'];
-            $googleId = $payload['sub']; // Lấy Google ID từ payload
 
-            // Tìm người dùng trong cơ sở dữ liệu dựa trên email hoặc google_id
+            $email = $payload['email'] ?? null;
+            $googleId = $payload['sub'];
+            $avatarUrl = $payload['picture'] ?? null;
+            $fullname = $payload['name'] ?? null;
+
             $user = User::where('email', $email)->orWhere('google_id', $googleId)->first();
 
             if ($user) {
-                // Cập nhật Google ID nếu chưa có
+                $user->update([
+                    'fullname' => $fullname ?? $user->fullname,
+                    'phone_number' => $request->input('phone_number', $user->phone_number),
+                ]);
+
                 if (!$user->google_id) {
                     $user->update(['google_id' => $googleId]);
+                }
+
+                if (!$user->avatar && $avatarUrl) {
+                    $avatarPath = $this->saveAvatarFromUrl($avatarUrl);
+                    $user->update(['avatar' => $avatarPath]);
                 }
 
                 // Kiểm tra xem email đã được xác minh chưa
@@ -755,6 +764,7 @@ class UserController extends Controller
                     // Lưu email vào session để xử lý khi resend
                     session(['user_email' => $user->email]);
 
+
                     return response()->json([
                         'message' => 'Please verify your email to continue.',
                         'status' => 'verification_required',
@@ -767,17 +777,18 @@ class UserController extends Controller
                     'access_token' => $token,
                     'message' => 'Login successful',
                     'status' => 'verified',
-                    'role' => $user->role->name,      // Thêm role vào phản hồi
-                    'user_id' => $user->id,      // Thêm user_id vào phản hồi
-                    'user_name' => $user->fullname, // Thêm fullname vào phản hồi
+                    'role' => $user->role->name,
+                    'user_id' => $user->id,
+                    'user_name' => $user->fullname,
                 ]);
             }
 
             // Nếu người dùng chưa tồn tại, tạo người dùng mới
             $user = User::create([
-                'fullname' => $fullname,
+                'fullname' => $fullname,  // Nếu fullname chưa có, sử dụng từ Google
                 'email' => $email,
                 'google_id' => $googleId,
+                'avatar' => $avatarUrl ? $this->saveAvatarFromUrl($avatarUrl) : null, // Lưu avatar nếu có
                 'password' => Hash::make(Str::random(12)), // Mật khẩu ngẫu nhiên
                 'verification_code_expires_at' => now()->addMinutes(3),
             ]);
@@ -786,12 +797,34 @@ class UserController extends Controller
             Mail::to($user->email)->send(new VerifyEmailMail($user));
             // Lưu email vào session để xử lý khi resend
             session(['user_email' => $user->email]);
+
             return response()->json([
                 'message' => 'User created. Please verify your email.',
                 'status' => 'verification_required',
             ]);
         } catch (\Exception $e) {
             return response()->json(['message' => 'Error processing Google login', 'error' => $e->getMessage()], 500);
+        }
+    }
+    public function saveAvatarFromUrl($url)
+    {
+        try {
+            // Lấy ảnh từ URL
+            $image = Http::get($url)->body();
+
+            // Tạo tên ảnh ngẫu nhiên
+            $imageName = Str::random(10) . '.jpg'; // Tên ảnh ngẫu nhiên
+
+            // Đường dẫn tuyệt đối tới thư mục public
+            $avatarPath = public_path('avatar/' . $imageName);
+
+            // Lưu ảnh vào thư mục public
+            file_put_contents($avatarPath, $image);
+
+            return $imageName; // Trả về tên ảnh ngẫu nhiên
+        } catch (\Exception $e) {
+            // Nếu có lỗi, có thể trả về ảnh mặc định
+            return 'default-avatar.jpg';
         }
     }
     public function hello()

@@ -179,6 +179,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/dashboard/task-status', [DashboardController::class, 'getTaskCountsByStatusGrouped']);
     Route::get('/dashboard/user-task-time', [DashboardController::class, 'getUserTaskStatistics']);
     Route::get('/dashboard/worktime-task', [DashboardController::class, 'getWorktimeWithTasks']);
+    Route::get('/dashboard/get-departments', [DashboardController::class, 'getDepartments']);
+    Route::get('/dashboard/get-projects', [DashboardController::class, 'getProjects']);
+    Route::get('/dashboard/get-tasks', [DashboardController::class, 'getUserAssignedTasks']);
+    Route::get('/dashboard/get-activity', [DashboardController::class, 'getUserActivities']);
 
 
 

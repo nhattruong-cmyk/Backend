@@ -15,6 +15,8 @@ use Illuminate\Support\Facades\Auth;
 use App\Http\Requests\StoreTaskRequest;
 use App\Http\Requests\UpdateTaskRequest;
 use Exception;
+use Illuminate\Support\Facades\DB;
+
 
 use Illuminate\Http\Request;
 
@@ -25,33 +27,43 @@ class TaskController extends Controller
     public function index(Request $request)
     {
         // Kiểm tra quyền xem task (Sử dụng Policy)
-        $this->authorize('viewAny', Task::class);
-
+        // $this->authorize('viewAny', Task::class);
+    
+        $user = $request->user();
+    
         // Nếu là Admin hoặc Manager, lấy tất cả các task
-        if ($request->user()->role_id === 1 || $request->user()->role_id === 2) {
+        if ($user->role_id === 1 || $user->role_id === 2) {
             $tasks = Task::all();
         }
-
-        // Nếu là Staff, lấy các task mà họ đã tạo và các task liên quan tới department mà họ tham gia
-        if ($request->user()->role_id === 3) {
-            // Lấy các task mà user đã tạo (dựa vào user_id)
-            $createdTasks = Task::where('user_id', $request->user()->id)->get();
-
-            // Lấy tất cả các department mà user tham gia
-            $departments = $request->user()->departments;
-
-            // Lấy tất cả task trong các department mà user tham gia
-            $relatedTasks = $departments->flatMap(function ($department) {
-                return $department->tasks;
-            });
-
-            // Kết hợp các task đã tạo và các task liên quan đến các department mà user tham gia
-            $tasks = $createdTasks->merge($relatedTasks)->unique('id');
+    
+        // Nếu là Staff (role_id = 3)
+        elseif ($user->role_id === 3) {
+            if (!is_null($user->create_by)) {
+                // Nếu cột create_by không rỗng, lấy các task của các thành viên trong phòng ban mà họ tạo
+    
+                // Lấy danh sách department_id từ create_by (JSON decoded thành array)
+                $departmentIds = json_decode($user->create_by, true);
+    
+                // Lấy user_ids từ các phòng ban mà user đã tạo
+                $usersInDepartments = DB::table('department_user')
+                    ->whereIn('department_id', $departmentIds)
+                    ->pluck('user_id');
+    
+                // Lấy tất cả các task của các user trong các phòng ban đó
+                $tasks = Task::whereIn('user_id', $usersInDepartments)->get();
+            } else {
+                // Nếu cột create_by rỗng, chỉ lấy các task mà user được phân công (dựa vào user_id)
+                $tasks = Task::where('user_id', $user->id)->get();
+            }
+        } else {
+            // Nếu không thuộc role nào hợp lệ, trả về lỗi Unauthorized
+            return response()->json(['error' => 'Unauthorized'], 403);
         }
-
+    
         return response()->json($tasks);
     }
-
+    
+    
     public function getTasksByProject($projectId)
     {
         try {
