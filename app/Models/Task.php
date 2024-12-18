@@ -25,7 +25,7 @@ class Task extends Model
 // Trong model Task
     public function worktime()
     {
-        return $this->belongsTo(Worktimes::class, 'worktime_id');  // Chú ý đến 'worktime_id'
+        return $this->belongsTo(Worktime::class, 'worktime_id');  // Chú ý đến 'worktime_id'
     }
 
     public function comments()

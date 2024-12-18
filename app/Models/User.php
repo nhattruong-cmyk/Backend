@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens; // Thêm trait này
-use App\Models\Worktimes;
+use App\Models\Worktime;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 
 
@@ -109,7 +109,7 @@ class User extends Authenticatable implements MustVerifyEmail
 
     public function worktimes()
     {
-        return $this->hasMany(Worktimes::class, 'user_id');
+        return $this->hasMany(Worktime::class, 'user_id');
     }
 
     // Trong model User
