@@ -26,34 +26,36 @@ class TaskController extends Controller
     // lấy danh sách Task
     public function index(Request $request)
     {
-        // Kiểm tra quyền xem task (Sử dụng Policy)
-        // $this->authorize('viewAny', Task::class);
-    
         $user = $request->user();
     
         // Nếu là Admin hoặc Manager, lấy tất cả các task
         if ($user->role_id === 1 || $user->role_id === 2) {
             $tasks = Task::all();
         }
-    
         // Nếu là Staff (role_id = 3)
         elseif ($user->role_id === 3) {
             if (!is_null($user->create_by)) {
-                // Nếu cột create_by không rỗng, lấy các task của các thành viên trong phòng ban mà họ tạo
+                // Nếu cột create_by không rỗng, lấy các task được giao cho project mà user đó tạo
     
-                // Lấy danh sách department_id từ create_by (JSON decoded thành array)
-                $departmentIds = json_decode($user->create_by, true);
+                // Lấy danh sách project_id mà user tạo (dựa vào user_id trong bảng projects)
+                $projectIds = Project::where('user_id', $user->id)->pluck('id');
     
-                // Lấy user_ids từ các phòng ban mà user đã tạo
-                $usersInDepartments = DB::table('department_user')
-                    ->whereIn('department_id', $departmentIds)
-                    ->pluck('user_id');
+                // Lấy task_id từ bảng project_task dựa vào project_id
+                $taskIds = DB::table('project_task')->whereIn('project_id', $projectIds)->pluck('task_id');
     
-                // Lấy tất cả các task của các user trong các phòng ban đó
-                $tasks = Task::whereIn('user_id', $usersInDepartments)->get();
+                // Lấy các task tương ứng
+                $tasks = Task::whereIn('id', $taskIds)->get();
             } else {
-                // Nếu cột create_by rỗng, chỉ lấy các task mà user được phân công (dựa vào user_id)
-                $tasks = Task::where('user_id', $user->id)->get();
+                // Nếu cột create_by rỗng, lấy các task được giao cho phòng ban mà user đó thuộc về
+    
+                // Lấy danh sách department_id mà user thuộc về (dựa vào bảng department_user)
+                $departmentIds = DB::table('department_user')->where('user_id', $user->id)->pluck('department_id');
+    
+                // Lấy task_id từ bảng task_department dựa vào department_id
+                $taskIds = DB::table('task_department')->whereIn('department_id', $departmentIds)->pluck('task_id');
+    
+                // Lấy các task tương ứng
+                $tasks = Task::whereIn('id', $taskIds)->get();
             }
         } else {
             // Nếu không thuộc role nào hợp lệ, trả về lỗi Unauthorized
@@ -62,7 +64,6 @@ class TaskController extends Controller
     
         return response()->json($tasks);
     }
-    
     
     public function getTasksByProject($projectId)
     {
@@ -413,7 +414,6 @@ class TaskController extends Controller
         }
     }
     
-
     public function getTaskWithoutWorktime(Request $request)
     {
         // Kiểm tra quyền xem task không có worktime_id (sử dụng Policy)
@@ -473,7 +473,6 @@ class TaskController extends Controller
 
         return response()->json($formattedTasks, 200);
     }
-
 
     // cập nhật vị trí task
     public function updateLocationTask(Request $request, $task_id)
@@ -615,9 +614,9 @@ class TaskController extends Controller
             // $this->authorize('delete', $task);  // Kiểm tra quyền xóa task qua TaskPolicy
 
             // Kiểm tra trạng thái của task
-            if (!in_array($task->status, ['to do', 'done'], true)) {
+            if (in_array($task->status, ['done'], true)) {
                 return response()->json([
-                    'error' => 'Không thể xóa nhiệm vụ vì đang trong quá trình thực hiện.',
+                    'error' => 'Không thể xóa nhiệm vụ khi ở trạng thái này.',
                 ], 403);  // Không cho phép xóa task khi trạng thái không phải 'to do' hoặc 'done'
             }
 
@@ -773,7 +772,6 @@ class TaskController extends Controller
             'tasks' => $tasks,
         ], 200);
     }
-
 
     // cập nhật worktime_id (có thể rỗng)
     public function updateWorktimeId(Request $request, $task_id)

@@ -5,7 +5,7 @@ namespace App\Http\Requests;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Http\Exceptions\HttpResponseException;
-use App\Models\Worktimes;
+use App\Models\Worktime;
 
 
 class UpdateTaskRequest extends FormRequest
@@ -35,7 +35,7 @@ class UpdateTaskRequest extends FormRequest
                 function ($attribute, $value, $fail) {
                     // Kiểm tra nếu có worktime_id
                     if ($this->input('worktime_id')) {
-                        $worktime = Worktimes::find($this->input('worktime_id'));
+                        $worktime = Worktime::find($this->input('worktime_id'));
     
                         if ($worktime) {
                             // Kiểm tra xem start_date có nằm trong khoảng thời gian của worktime không
@@ -53,7 +53,7 @@ class UpdateTaskRequest extends FormRequest
                 function ($attribute, $value, $fail) {
                     // Kiểm tra nếu có worktime_id
                     if ($this->input('worktime_id')) {
-                        $worktime = Worktimes::find($this->input('worktime_id'));
+                        $worktime = Worktime::find($this->input('worktime_id'));
     
                         if ($worktime) {
                             // Kiểm tra xem end_date có nằm trong khoảng thời gian của worktime không

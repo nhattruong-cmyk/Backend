@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use App\Models\Project;
 use App\Models\Worktime;
 use App\Models\Department;
+use App\Models\Assignment;
 use App\Models\ActivityLog;
 use App\Http\Controllers\ActivityLogController;
 use App\Models\Task;
@@ -30,7 +31,6 @@ class DashboardController extends Controller
     {
         //
     }
-
 
     public function update(Request $request, string $id)
     {
@@ -180,7 +180,7 @@ class DashboardController extends Controller
         try {
             // Lấy thông tin user hiện tại
             $user = auth()->user();
-
+    
             // Nếu user có role_id = 1 hoặc 2 (Admin hoặc Manager)
             if (in_array($user->role_id, [1, 2])) {
                 // Query để lấy thống kê cho tất cả user
@@ -195,16 +195,26 @@ class DashboardController extends Controller
                     )
                     ->groupBy('users.id', 'users.fullname')
                     ->get();
-
+    
                 return response()->json([
                     'message' => 'Task statistics retrieved successfully.',
                     'users' => $userStats,
                 ], 200);
             }
-
-            // Nếu user có role_id = 3 (Staff), chỉ lấy thống kê của user đó
+    
+            // Nếu user có role_id = 3 (Staff), lấy thống kê của các user trong cùng phòng ban
             elseif ($user->role_id === 3) {
-                // Query để lấy thống kê chỉ cho user hiện tại
+                // Lấy danh sách department_id mà user thuộc về
+                $departmentIds = DB::table('department_user')
+                    ->where('user_id', $user->id)
+                    ->pluck('department_id');
+    
+                // Lấy danh sách user_id thuộc các phòng ban này
+                $userIdsInDepartments = DB::table('department_user')
+                    ->whereIn('department_id', $departmentIds)
+                    ->pluck('user_id');
+    
+                // Query để lấy thống kê cho các user trong phòng ban
                 $userStats = DB::table('users')
                     ->leftJoin('assignments', 'users.id', '=', 'assignments.user_id')
                     ->leftJoin('tasks', 'assignments.task_id', '=', 'tasks.id')
@@ -212,18 +222,21 @@ class DashboardController extends Controller
                         'users.id as user_id',
                         'users.fullname',
                         DB::raw('COUNT(tasks.id) as task_count'),
-                        DB::raw('COALESCE(SUM(tasks.task_time), 0) as total_task_time')
+                        DB::raw('COALESCE(SUM(tasks.task_time), 0) as total_task_time'),
+                        DB::raw('GROUP_CONCAT(departments.department_name SEPARATOR ", ") as departments')
                     )
-                    ->where('users.id', $user->id)
+                    ->leftJoin('department_user', 'users.id', '=', 'department_user.user_id')
+                    ->leftJoin('departments', 'department_user.department_id', '=', 'departments.id')
+                    ->whereIn('users.id', $userIdsInDepartments)
                     ->groupBy('users.id', 'users.fullname')
                     ->get();
-
+    
                 return response()->json([
-                    'message' => 'Task statistics retrieved for the current user.',
+                    'message' => 'Task statistics retrieved for users in the same department.',
                     'users' => $userStats,
                 ], 200);
             }
-
+    
             // Trường hợp không đủ quyền
             return response()->json(['error' => 'Bạn không có quyền truy cập thông tin này.'], 403);
         } catch (\Exception $e) {
@@ -232,6 +245,8 @@ class DashboardController extends Controller
             ], 500);
         }
     }
+    
+    
 
     public function getWorktimeWithTasks()
     {
@@ -310,8 +325,6 @@ class DashboardController extends Controller
             ], 500);
         }
     }
-    
-    
 
     public function getDepartments(Request $request)
     {
@@ -319,25 +332,34 @@ class DashboardController extends Controller
             $user = auth()->user(); // Lấy thông tin người dùng hiện tại
 
             if ($user->role_id === 1 || $user->role_id === 2) {
-                // Admin hoặc Manager: Đếm tất cả các phòng ban
-                $departmentCount = Department::count();
+                // Admin hoặc Manager: Lấy tất cả các phòng ban
+                $departments = Department::all();
             } elseif ($user->role_id === 3) {
-                // Staff: Đếm số lượng phòng ban mà họ tham gia
-                $departmentCount = $user->departments()->count(); // Giả sử có quan hệ departments trong model User
+                // Staff: Lấy các phòng ban mà họ tham gia
+                $departments = $user->departments; // Giả sử có quan hệ departments trong model User
             } else {
                 // Vai trò không hợp lệ hoặc không được phép truy cập
                 return response()->json(['error' => 'Unauthorized'], 403);
             }
 
+            // Trả về thông tin phòng ban với department_name và descriptions
             return response()->json([
-                'total_departments' => $departmentCount,
+                'message' => 'Danh sách phòng ban đã được lấy thành công.',
+                'departments' => $departments->map(function ($department) {
+                    return [
+                        'department_name' => $department->department_name,
+                        'description' => $department->description,
+                    ];
+                }),
+                'total_departments' => $departments->count(),
             ], 200);
         } catch (\Exception $e) {
             return response()->json([
-                'error' => 'Đã xảy ra lỗi khi thống kê số lượng phòng ban: ' . $e->getMessage(),
+                'error' => 'Đã xảy ra lỗi khi lấy danh sách phòng ban: ' . $e->getMessage(),
             ], 500);
         }
     }
+
 
     public function getProjects(Request $request)
     {
@@ -345,13 +367,13 @@ class DashboardController extends Controller
             $user = auth()->user();
 
             if ($user->role_id === 1 || $user->role_id === 2) {
-                // Admin hoặc Manager: Đếm tất cả dự án
-                $projectCount = Project::count();
+                // Admin hoặc Manager: Lấy danh sách tất cả dự án
+                $projects = Project::with('user')->get();
             } elseif ($user->role_id === 3) {
                 // Staff:
 
                 // Lấy danh sách dự án do họ tạo (dựa vào user_id trong bảng projects)
-                $createdProjectIds = Project::where('user_id', $user->id)->pluck('id')->toArray();
+                $createdProjects = Project::where('user_id', $user->id)->with('user')->get();
 
                 // Lấy các phòng ban mà họ tham gia
                 $departmentIds = DB::table('department_user')
@@ -359,23 +381,29 @@ class DashboardController extends Controller
                     ->pluck('department_id');
 
                 // Lấy danh sách dự án liên quan đến các phòng ban mà họ tham gia (dựa vào bảng project_department)
-                $relatedProjectIds = DB::table('project_department')
+                $relatedProjects = DB::table('project_department')
                     ->whereIn('department_id', $departmentIds)
                     ->pluck('project_id')
                     ->toArray();
 
                 // Kết hợp danh sách dự án họ tạo và dự án liên quan
-                $allProjectIds = array_unique(array_merge($createdProjectIds, $relatedProjectIds));
-
-                // Đếm số lượng dự án duy nhất
-                $projectCount = count($allProjectIds);
+                $projects = $createdProjects->merge(Project::whereIn('id', $relatedProjects)->with('user')->get());
             } else {
                 // Nếu không phải Admin, Manager hoặc Staff, trả về lỗi Unauthorized
                 return response()->json(['error' => 'Unauthorized'], 403);
             }
 
+            // Trả về danh sách dự án cùng với các thông tin cần thiết
             return response()->json([
-                'total_projects' => $projectCount,
+                'message' => 'Danh sách dự án được lấy thành công.',
+                'projects' => $projects->map(function ($project) {
+                    return [
+                        'project_name' => $project->project_name,
+                        'status' => $project->status,
+                        'user' => $project->user ? $project->user->fullname : 'N/A', // Trả về tên người tạo dự án
+                    ];
+                }),
+                'total_projects' => $projects->count(),
             ], 200);
         } catch (\Exception $e) {
             return response()->json([
@@ -384,24 +412,38 @@ class DashboardController extends Controller
         }
     }
 
+
     public function getUserAssignedTasks(Request $request)
     {
         try {
             $user = auth()->user();
-
+    
             if ($user->role_id === 1 || $user->role_id === 2) {
-                // Admin hoặc Manager: Đếm tất cả nhiệm vụ
-                $taskCount = Task::count();
+                // Admin hoặc Manager: Lấy tất cả nhiệm vụ
+                $tasks = Task::with(['worktime', 'project'])->get();
             } elseif ($user->role_id === 3) {
-                // Staff: Đếm các nhiệm vụ được giao cho họ (dựa vào user_id trong bảng tasks)
-                $taskCount = Task::where('user_id', $user->id)->count();
+                // Staff: Lấy các nhiệm vụ được giao cho họ (dựa vào task_id và user_id trong bảng assignments)
+                $assignedTaskIds = Assignment::where('user_id', $user->id)->pluck('task_id');
+    
+                // Lấy thông tin nhiệm vụ từ bảng tasks dựa vào task_id
+                $tasks = Task::whereIn('id', $assignedTaskIds)->with(['worktime', 'project'])->get();
             } else {
                 // Nếu không phải Admin, Manager hoặc Staff, trả về lỗi Unauthorized
                 return response()->json(['error' => 'Unauthorized'], 403);
             }
-
+    
+            // Trả về dữ liệu nhiệm vụ với các trường yêu cầu
             return response()->json([
-                'total_assigned_tasks' => $taskCount,
+                'message' => 'Danh sách nhiệm vụ được lấy thành công.',
+                'tasks' => $tasks->map(function ($task) {
+                    return [
+                        'task_name' => $task->task_name,
+                        'status' => $task->status,
+                        'worktime_name' => $task->worktime ? $task->worktime->name : 'N/A',
+                        'project_name' => $task->project ? $task->project->project_name : 'N/A',
+                    ];
+                }),
+                'total_assigned_tasks' => $tasks->count(),
             ], 200);
         } catch (\Exception $e) {
             return response()->json([
@@ -409,6 +451,104 @@ class DashboardController extends Controller
             ], 500);
         }
     }
+    
+
+    // public function getDepartments(Request $request)
+    // {
+    //     try {
+    //         $user = auth()->user(); // Lấy thông tin người dùng hiện tại
+
+    //         if ($user->role_id === 1 || $user->role_id === 2) {
+    //             // Admin hoặc Manager: Đếm tất cả các phòng ban
+    //             $departmentCount = Department::count();
+    //         } elseif ($user->role_id === 3) {
+    //             // Staff: Đếm số lượng phòng ban mà họ tham gia
+    //             $departmentCount = $user->departments()->count(); // Giả sử có quan hệ departments trong model User
+    //         } else {
+    //             // Vai trò không hợp lệ hoặc không được phép truy cập
+    //             return response()->json(['error' => 'Unauthorized'], 403);
+    //         }
+
+    //         return response()->json([
+    //             'total_departments' => $departmentCount,
+    //         ], 200);
+    //     } catch (\Exception $e) {
+    //         return response()->json([
+    //             'error' => 'Đã xảy ra lỗi khi thống kê số lượng phòng ban: ' . $e->getMessage(),
+    //         ], 500);
+    //     }
+    // }
+
+    // public function getProjects(Request $request)
+    // {
+    //     try {
+    //         $user = auth()->user();
+
+    //         if ($user->role_id === 1 || $user->role_id === 2) {
+    //             // Admin hoặc Manager: Đếm tất cả dự án
+    //             $projectCount = Project::count();
+    //         } elseif ($user->role_id === 3) {
+    //             // Staff:
+
+    //             // Lấy danh sách dự án do họ tạo (dựa vào user_id trong bảng projects)
+    //             $createdProjectIds = Project::where('user_id', $user->id)->pluck('id')->toArray();
+
+    //             // Lấy các phòng ban mà họ tham gia
+    //             $departmentIds = DB::table('department_user')
+    //                 ->where('user_id', $user->id)
+    //                 ->pluck('department_id');
+
+    //             // Lấy danh sách dự án liên quan đến các phòng ban mà họ tham gia (dựa vào bảng project_department)
+    //             $relatedProjectIds = DB::table('project_department')
+    //                 ->whereIn('department_id', $departmentIds)
+    //                 ->pluck('project_id')
+    //                 ->toArray();
+
+    //             // Kết hợp danh sách dự án họ tạo và dự án liên quan
+    //             $allProjectIds = array_unique(array_merge($createdProjectIds, $relatedProjectIds));
+
+    //             // Đếm số lượng dự án duy nhất
+    //             $projectCount = count($allProjectIds);
+    //         } else {
+    //             // Nếu không phải Admin, Manager hoặc Staff, trả về lỗi Unauthorized
+    //             return response()->json(['error' => 'Unauthorized'], 403);
+    //         }
+
+    //         return response()->json([
+    //             'total_projects' => $projectCount,
+    //         ], 200);
+    //     } catch (\Exception $e) {
+    //         return response()->json([
+    //             'error' => 'Lỗi khi tìm nạp dự án: ' . $e->getMessage(),
+    //         ], 500);
+    //     }
+    // }
+
+    // public function getUserAssignedTasks(Request $request)
+    // {
+    //     try {
+    //         $user = auth()->user();
+
+    //         if ($user->role_id === 1 || $user->role_id === 2) {
+    //             // Admin hoặc Manager: Đếm tất cả nhiệm vụ
+    //             $taskCount = Task::count();
+    //         } elseif ($user->role_id === 3) {
+    //             // Staff: Đếm các nhiệm vụ được giao cho họ (dựa vào user_id trong bảng tasks)
+    //             $taskCount = Task::where('user_id', $user->id)->count();
+    //         } else {
+    //             // Nếu không phải Admin, Manager hoặc Staff, trả về lỗi Unauthorized
+    //             return response()->json(['error' => 'Unauthorized'], 403);
+    //         }
+
+    //         return response()->json([
+    //             'total_assigned_tasks' => $taskCount,
+    //         ], 200);
+    //     } catch (\Exception $e) {
+    //         return response()->json([
+    //             'error' => 'Lỗi khi tìm nạp nhiệm vụ: ' . $e->getMessage(),
+    //         ], 500);
+    //     }
+    // }
 
     public function getUserActivities()
     {

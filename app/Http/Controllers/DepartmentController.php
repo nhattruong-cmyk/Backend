@@ -24,6 +24,8 @@ use Illuminate\Support\Facades\DB;
 use App\Http\Controllers\ConfirmRequestController;
 use App\Notifications\UpdateDepartmentNotification;
 use App\Notifications\UserAddedToDepartment;
+use App\Mail\RemovedUserDepartment;
+use App\Notifications\UserRemovedFromDepartment;
 
 class DepartmentController extends Controller
 {
@@ -141,18 +143,26 @@ class DepartmentController extends Controller
     public function removeUserFromDepartment($departmentId, $userId)
     {
         $user = auth()->user(); // Lấy thông tin người dùng hiện tại
-
+    
         // Kiểm tra nếu người dùng có quyền (role_id = 1 hoặc 2) xóa thành viên bất kỳ
         if ($user->role_id === 1 || $user->role_id === 2) {
             // Gọi phương thức xóa người dùng khỏi phòng ban
             $this->deleteUserFromDepartment($departmentId, $userId);
-
-            // Gọi phương thức xóa yêu cầu xác nhận
+            $userToBeRemoved = User::findOrFail($userId);
+            $department = Department::findOrFail($departmentId);
+    
+            // Gửi email thông báo cho người dùng bị xóa
+            Mail::to($userToBeRemoved->email)->send(new RemovedUserDepartment($userToBeRemoved, $department));
+    
+            // Gửi thông báo cho người dùng bị xóa khỏi phòng ban
+            $userToBeRemoved->notify(new UserRemovedFromDepartment($department));
+    
+            // Xóa yêu cầu xác nhận (nếu có)
             $this->deleteRequest($departmentId, $userId);
-
+    
             return response()->json(['message' => 'Người dùng đã được xóa khỏi phòng ban và yêu cầu xác nhận đã được xóa thành công.']);
         }
-
+    
         // Kiểm tra nếu user có role_id = 3 và có cột create_by có dữ liệu
         if ($user->role_id === 3 && !is_null($user->create_by)) {
             // Kiểm tra xem phòng ban trong cột create_by có chứa departmentId không
@@ -160,19 +170,29 @@ class DepartmentController extends Controller
             if (in_array($departmentId, $createBy)) {
                 // Kiểm tra xem người dùng có nhiệm vụ nào chưa (dựa vào bảng assignments)
                 $hasAssignments = Assignment::where('user_id', $userId)->where('status', '!=', 'done')->exists(); // Giả sử trạng thái "completed" là trạng thái đã hoàn thành
-
+    
                 if ($hasAssignments) {
                     return response()->json([
                         'error' => 'Không thể xóa người dùng khỏi phòng ban vì họ đang nhận nhiệm vụ.'
                     ], 400);
                 }
-
+    
                 // Gọi phương thức xóa người dùng khỏi phòng ban
                 $this->deleteUserFromDepartment($departmentId, $userId);
-
-                // Gọi phương thức xóa yêu cầu xác nhận
+    
+                // Gửi email cho người dùng bị xóa
+                $userToBeRemoved = User::findOrFail($userId);
+                $department = Department::findOrFail($departmentId);
+    
+                // Gửi email thông báo cho người dùng bị xóa
+                Mail::to($userToBeRemoved->email)->send(new RemovedUserDepartment($userToBeRemoved, $department));
+    
+                // Gửi thông báo cho người dùng bị xóa khỏi phòng ban
+                $userToBeRemoved->notify(new UserRemovedFromDepartment($department));
+    
+                // Xóa yêu cầu xác nhận (nếu có)
                 $this->deleteRequest($departmentId, $userId);
-
+    
                 return response()->json(['message' => 'Người dùng đã được xóa khỏi phòng ban và yêu cầu xác nhận đã được xóa thành công.']);
             } else {
                 // Nếu không phải phòng ban mà user tạo, trả về lỗi
@@ -181,18 +201,18 @@ class DepartmentController extends Controller
                 ], 403);
             }
         }
-
-
+    
         // Nếu user có role_id = 3 và create_by rỗng, không thể xóa thành viên khác
         if ($user->role_id === 3 && is_null($user->create_by)) {
             return response()->json([
                 'error' => 'Bạn không có quyền xóa thành viên khác trong phòng ban.'
             ], 403);
         }
-
+    
         // Nếu không thỏa mãn điều kiện nào, trả về lỗi Unauthorized
         return response()->json(['error' => 'Unauthorized'], 403);
     }
+    
 
     // Phương thức xóa người dùng khỏi phòng ban
     public function deleteUserFromDepartment($departmentId, $userId)
@@ -216,20 +236,20 @@ class DepartmentController extends Controller
         return response()->json(['message' => 'Người dùng đã được xóa khỏi phòng ban thành công.']);
     }
 
-    // Phương thức xóa yêu cầu xác nhận của người dùng
     public function deleteRequest($departmentId, $userId)
-    {
-        $request = ConfirmationRequest::where('department_id', $departmentId)
-            ->where('user_id', $userId)
-            ->first();
+{
+    $request = ConfirmationRequest::where('department_id', $departmentId)
+        ->where('user_id', $userId)
+        ->first();
 
-        if ($request) {
-            $request->delete();
-            return response()->json(['message' => 'Yêu cầu xác nhận đã được xóa thành công.']);
-        }
-
-        return response()->json(['message' => 'Không tìm thấy yêu cầu xác nhận.'], 404);
+    if ($request) {
+        $request->delete();
+        return response()->json(['message' => 'Yêu cầu xác nhận đã được xóa thành công.']);
     }
+
+    return response()->json(['message' => 'Không tìm thấy yêu cầu xác nhận.'], 404);
+}
+
 
     public function confirmUser($department_id, $token)
     {

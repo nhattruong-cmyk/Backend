@@ -23,11 +23,9 @@ class AssignmentController extends Controller
 {
     public function index(Request $request)
     {
-        // // Kiểm tra quyền truy cập (Sử dụng Policy)
-        // $this->authorize('viewAny', Assignment::class);
-    
+
         $user = auth()->user();
-    
+
         // Kiểm tra quyền truy cập cho Admin và Manager
         if ($user->role_id === 1 || $user->role_id === 2) {
             // Admin và Manager có thể xem tất cả assignments
@@ -43,7 +41,7 @@ class AssignmentController extends Controller
             } else {
                 // Nếu không có create_by, lấy các assignments mà user đã tạo hoặc được phân công cho họ
                 $assignments = Assignment::where('user_id', $user->id) // Các phân công do user nhận
-                    ->orWhere('user_id', $user->id) // Các phân công mà user đã tạo
+                    ->orWhere('taskmaster', $user->id) // Các phân công mà user đã tạo
                     ->with('user', 'department', 'task')
                     ->get();
             }
@@ -51,12 +49,9 @@ class AssignmentController extends Controller
             // Nếu không thỏa mãn điều kiện, trả về lỗi Unauthorized
             return response()->json(['error' => 'Unauthorized'], 403);
         }
-    
+
         return response()->json($assignments);
     }
-    
-    
-    
 
     public function show($id)
     {
@@ -92,8 +87,8 @@ class AssignmentController extends Controller
     public function getUsersByDepartment($department_id)
     {
         try {
-            $department = Department::with(['users' => function($query) {
-                $query->whereHas('confirmationRequests', function($subQuery) {
+            $department = Department::with(['users' => function ($query) {
+                $query->whereHas('confirmationRequests', function ($subQuery) {
                     $subQuery->where('confirmation_status', 'confirmed');
                 });
             }])->findOrFail($department_id);
@@ -206,7 +201,6 @@ class AssignmentController extends Controller
         }
     }
 
-
     public function update(UpdateAssignmentRequest $request, $id)
     {
         try {
@@ -262,12 +256,12 @@ class AssignmentController extends Controller
                 $assignment->save();
             }
 
-//            // Tạo thông báo nếu có thay đổi quan trọng
-//            Notification::create([
-//                'user_id' => $assignment->user_id,
-//                'message' => 'Phân công của bạn đã được cập nhật.',
-//                'read' => false,
-//            ]);
+            //            // Tạo thông báo nếu có thay đổi quan trọng
+            //            Notification::create([
+            //                'user_id' => $assignment->user_id,
+            //                'message' => 'Phân công của bạn đã được cập nhật.',
+            //                'read' => false,
+            //            ]);
 
             return response()->json(['message' => 'Cập nhật phân công thành công', 'assignment' => $assignment], 200);
         } catch (\Exception $e) {
@@ -347,65 +341,87 @@ class AssignmentController extends Controller
         try {
             // Lấy thông tin người dùng hiện tại
             $user = auth()->user();
-    
+
             // Tìm assignment theo ID
             $assignment = Assignment::findOrFail($id);
-    
+
             // Kiểm tra trạng thái phân công
             $status = $assignment->status;
-    
+
             // Kiểm tra quyền xóa nhiệm vụ dựa trên vai trò của người dùng và trạng thái phân công
             if ($user->role_id === 1 || $user->role_id === 2) {
                 // Admin và Manager có thể xóa phân công khi trạng thái không phải 1 hoặc 4
-                if (in_array($status, ['to do', 'done'])) {
+                if (in_array($status, ['done'])) {
                     return response()->json(['error' => 'Bạn không thể xóa phân công có trạng thái này.'], 400);
                 }
             } elseif ($user->role_id === 3) {
                 if (!is_null($user->create_by)) {
                     // User có role_id = 3 và create_by không rỗng, chỉ có thể xóa phân công khi trạng thái là 1 hoặc 4
-                    if (!in_array($status, ['to do', 'done'])) {
-                        return response()->json(['error' => 'Bạn chỉ có thể xóa phân công có trạng thái 1 hoặc 4.'], 400);
+                    if (in_array($status, ['done'])) {
+                        return response()->json(['error' => 'Bạn không thể xóa phân công có trạng thái này.'], 400);
                     }
                 } else {
-                    // User có role_id = 3 và create_by là rỗng, chỉ có thể xóa phân công của chính họ hoặc do họ tạo khi trạng thái không phải 1 hoặc 4
-                    if ($assignment->user_id !== $user->id && $assignment->create_by !== $user->id) {
-                        return response()->json(['error' => 'Bạn chỉ có thể xóa phân công của chính bạn hoặc do bạn tạo.'], 400);
-                    }
-    
-                    if (in_array($status, ['to do', 'done'])) {
+// Họ có thể xóa phân công nếu họ là người được phân hoặc là người tạo
+if ($assignment->user_id === $user->id || $assignment->taskmaster === $user->id) {
+    $assignment->delete();
+    return response()->json(['message' => 'Phân công đã được xóa thành công.'], 200);
+} else {
+    return response()->json(['error' => 'Bạn không thể xóa phân công này.'], 403);
+}
+
+                    if (in_array($status, ['done'])) {
                         return response()->json(['error' => 'Bạn không thể xóa phân công có trạng thái này.'], 400);
                     }
                 }
             } else {
                 return response()->json(['error' => 'Bạn không có quyền xóa phân công này.'], 403);
             }
-    
+
             // Thực hiện xóa mềm (soft delete)
             $assignment->delete();
-    
+
             return response()->json(['message' => 'Xóa phân công mềm thành công'], 200);
         } catch (\Exception $e) {
             return response()->json(['error' => 'Xóa phân công thất bại: ' . $e->getMessage()], 500);
         }
     }
-    
 
     public function getTrashed()
     {
         try {
-            // Lấy danh sách assignment đã xóa mềm
-            $trashedAssignments = Assignment::onlyTrashed()->get();
-
+            $user = auth()->user();
+    
+            // Admin hoặc Manager: Xem tất cả các phân công đã xóa
+            if ($user->role_id === 1 || $user->role_id === 2) {
+                $trashedAssignments = Assignment::onlyTrashed()->get();
+            } elseif ($user->role_id === 3) {
+                if (!is_null($user->create_by)) {
+                    // Staff với create_by không rỗng: Xem các phân công đã xóa mà họ tạo
+    
+                    // Lấy các phân công đã xóa do họ là taskmaster
+                    $trashedAssignments = Assignment::onlyTrashed()
+                        ->where('user_id', $user->id)
+                        ->get();
+                } else {
+                    // Staff với create_by rỗng: Xem các phân công đã bị xóa thuộc về user đó
+                    $trashedAssignments = Assignment::onlyTrashed()
+                        ->where('user_id', $user->id)
+                        ->get();
+                }
+            } else {
+                return response()->json(['error' => 'Unauthorized'], 403);
+            }
+    
             if ($trashedAssignments->isEmpty()) {
                 return response()->json(['message' => 'Không có phân công đã xóa'], 404);
             }
-
+    
             return response()->json(['data' => $trashedAssignments], 200);
         } catch (\Exception $e) {
             return response()->json(['error' => 'Lấy phân công đã xóa thất bại: ' . $e->getMessage()], 500);
         }
     }
-
+    
     public function restore($id)
     {
         try {
@@ -468,5 +484,4 @@ class AssignmentController extends Controller
             'data' => $assignment,
         ], 200);
     }
-    
 }
