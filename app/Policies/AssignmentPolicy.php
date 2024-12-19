@@ -54,7 +54,6 @@ class AssignmentPolicy
         return response()->json(['message' => 'Unauthorized'], 403);
     }
 
-
     /**
      * Determine whether the user can view the model.
      */
